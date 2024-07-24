@@ -1,7 +1,7 @@
 module Data.Propagator.Class where
 
 -- | Representation of the different outcomes after updating a cell's value.
-data UpdateResult a = Unchanged a | Changed a | Contradiction
+data UpdateResult a = Unchanged | Changed a | Contradiction
 
 -- | Class for a type that carries partial information about a type.
 --
@@ -17,12 +17,12 @@ class PartialInfo a where
   -- (second argument).
   update :: a -> a -> UpdateResult a
 
--- | Maybe is the simplest partial information type, containing  either no
+-- | Maybe is the simplest partial information type, containing either no
 -- information or complete information about a value.
 instance (Eq a) => PartialInfo (Maybe a) where
   leastInfo = Nothing
 
-  update _ Nothing = Unchanged Nothing
+  update _ Nothing = Unchanged
   update (Just old) (Just new) =
-    if old /= new then Contradiction else Unchanged (Just old)
-  update Nothing (Just new) = Changed (Just new)
+    if old /= new then Contradiction else Unchanged
+  update Nothing x@(Just _) = Changed x

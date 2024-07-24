@@ -40,7 +40,7 @@ push :: Cell s a -> a -> ST s ()
 push cell new = do
   old <- readMutVar (_val cell)
   case _update cell old new of
-    Unchanged _ -> pure ()
+    Unchanged -> pure ()
     Changed a -> do
       writeMutVar (_val cell) a
       prop <- readMutVar (_subs cell)
