@@ -1,4 +1,9 @@
+{-# LANGUAGE GADTs #-}
+
 module Data.Propagator.Class where
+
+import Data.IntSet (IntSet)
+import qualified Data.IntSet as IntSet
 
 -- | Representation of the different outcomes after updating a cell's value.
 data UpdateResult a = Unchanged | Changed a | Contradiction
@@ -26,3 +31,22 @@ instance (Eq a) => PartialInfo (Maybe a) where
   update (Just old) (Just new) =
     if old /= new then Contradiction else Unchanged
   update Nothing x@(Just _) = Changed x
+
+-- | A set of discrete possible values.  Designed so that the user can create a
+-- custom sum type of possible values, derive `Bounded` and `Enum`, and then use
+-- that type as an `EnumSet`.
+data EnumSet a where
+  EnumSet :: (Bounded a, Enum a) => IntSet -> EnumSet a
+
+-- | `EnumSet`s represent partial information as a set of possible values.
+-- Two sets of possible values combine via intersection to reduce the
+-- possibilities for a value, thus increasing the information.
+instance (Bounded a, Enum a) => PartialInfo (EnumSet a) where
+  leastInfo = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
+
+  update (EnumSet s1) (EnumSet s2)
+    | s1 == s2 = Unchanged
+    | IntSet.null s3 = Contradiction
+    | otherwise = Changed (EnumSet s3)
+    where
+      s3 = IntSet.intersection s1 s2
