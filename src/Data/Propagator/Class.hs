@@ -4,6 +4,7 @@ module Data.Propagator.Class where
 
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
+import Prelude hiding (null)
 
 -- | Representation of the different outcomes after updating a cell's value.
 data UpdateResult a = Unchanged | Changed a | Contradiction
@@ -38,15 +39,46 @@ instance (Eq a) => PartialInfo (Maybe a) where
 data EnumSet a where
   EnumSet :: (Bounded a, Enum a) => IntSet -> EnumSet a
 
+instance Eq (EnumSet a) where
+  (EnumSet x) == (EnumSet y) = x == y
+
 -- | `EnumSet`s represent partial information as a set of possible values.
 -- Two sets of possible values combine via intersection to reduce the
 -- possibilities for a value, thus increasing the information.
 instance (Bounded a, Enum a) => PartialInfo (EnumSet a) where
   leastInfo = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
 
-  update (EnumSet s1) (EnumSet s2)
+  update s1 s2
     | s1 == s2 = Unchanged
-    | IntSet.null s3 = Contradiction
-    | otherwise = Changed (EnumSet s3)
+    | null s3 = Contradiction
+    | otherwise = Changed s3
     where
-      s3 = IntSet.intersection s1 s2
+      s3 = intersection s1 s2
+
+-- | The empty set (no possible values)
+empty :: (Bounded a, Enum a) => EnumSet a
+empty = EnumSet IntSet.empty
+
+-- | The universal set (all possible values)
+universal :: (Bounded a, Enum a) => EnumSet a
+universal = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
+
+-- | Is the set empty?
+null :: EnumSet a -> Bool
+null (EnumSet x) = IntSet.null x
+
+-- | The union of two sets.
+union :: EnumSet a -> EnumSet a -> EnumSet a
+union (EnumSet x) (EnumSet y) = EnumSet (IntSet.union x y)
+
+-- | The intersection of two sets.
+intersection :: EnumSet a -> EnumSet a -> EnumSet a
+intersection (EnumSet x) (EnumSet y) = EnumSet (IntSet.intersection x y)
+
+-- | The set difference (relative complement) of two sets.
+difference :: EnumSet a -> EnumSet a -> EnumSet a
+difference (EnumSet x) (EnumSet y) = EnumSet (IntSet.difference x y)
+
+-- | The complement of a set
+complement :: (Bounded a, Enum a) => EnumSet a -> EnumSet a
+complement = difference universal
