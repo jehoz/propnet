@@ -9,15 +9,17 @@ import Prelude hiding (null)
 -- | Representation of the different outcomes after updating a cell's value.
 data UpdateResult a = Unchanged | Changed a | Contradiction
 
--- | Class for a type that carries partial information about a type.
+-- | Class for a type that carries partial information about a value.
 --
--- Should behave as a bounded join semilattice with a bottom value representing
--- the least amount of information about a value.  Updating the value with more
--- information moves up the lattice, ideally culminating in a fully defined
--- value.  Updating with conflicting information should produce a contradiction.
+-- Should behave as a bounded join semilattice with a bottom representing the
+-- least amount of information about a value.
+-- Updating with new information moves up the lattice, ideally culminating in a
+-- fully defined value.  Updating with conflicting information should produce a
+-- contradiction.
 class PartialInfo a where
-  -- | The value of "least information" for the type, ie. the bottom of the lattice.
-  leastInfo :: a
+  -- | The bottom of the lattice, representing the least amount of information
+  -- we can know about a value.
+  bottom :: a
 
   -- | Merge the current value (first argument) with a new incoming value
   -- (second argument).
@@ -26,7 +28,7 @@ class PartialInfo a where
 -- | Maybe is the simplest partial information type, containing either no
 -- information or complete information about a value.
 instance (Eq a) => PartialInfo (Maybe a) where
-  leastInfo = Nothing
+  bottom = Nothing
 
   update _ Nothing = Unchanged
   update (Just old) (Just new) =
@@ -46,7 +48,7 @@ instance Eq (EnumSet a) where
 -- Two sets of possible values combine via intersection to reduce the
 -- possibilities for a value, thus increasing the information.
 instance (Bounded a, Enum a) => PartialInfo (EnumSet a) where
-  leastInfo = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
+  bottom = universal
 
   update s1 s2
     | s1 == s2 = Unchanged
