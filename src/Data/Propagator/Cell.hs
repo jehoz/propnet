@@ -60,12 +60,29 @@ watch cell newsub = modifyMutVar' cell.subs (\notify a -> notify a >> newsub a)
 with :: Cell s a -> (a -> ST s ()) -> ST s ()
 with cell f = peek cell >>= f
 
--- | Creates a relation between two cells from a unary function
-unary :: (a -> b) -> Cell s a -> Cell s b -> ST s ()
-unary f c1 c2 = watch c1 $ \x -> push c2 (f x)
+-- | Creates a one-way relation between two cells from a unary function
+liftUnary :: (a -> b) -> Cell s a -> Cell s b -> ST s ()
+liftUnary f c1 c2 = watch c1 $ \x -> push c2 (f x)
 
--- | Creates a relation between three cells from a binary function
-binary :: (a -> b -> c) -> Cell s a -> Cell s b -> Cell s c -> ST s ()
-binary f c1 c2 c3 = do
+-- | Creates a two-way relation between two cells from a unary function
+liftUnaryR :: ((a, b) -> (a, b)) -> Cell s a -> Cell s b -> ST s ()
+liftUnaryR r c1 c2 = do
+  watch c1 $ \x -> with c2 $ \y -> push2 x y
+  watch c2 $ \y -> with c1 $ \x -> push2 x y
+  where
+    push2 x y = let (x', y') = r (x, y) in push c1 x' >> push c2 y'
+
+-- | Creates a one-way relation between three cells from a binary function
+liftBinary :: (a -> b -> c) -> Cell s a -> Cell s b -> Cell s c -> ST s ()
+liftBinary f c1 c2 c3 = do
   watch c1 $ \x -> with c2 $ \y -> push c3 (f x y)
   watch c2 $ \y -> with c1 $ \x -> push c3 (f x y)
+
+-- | Creates a two-way relation between three cells from a binary function
+liftBinaryR :: ((a, b, c) -> (a, b, c)) -> Cell s a -> Cell s b -> Cell s c -> ST s ()
+liftBinaryR r c1 c2 c3 = do
+  watch c1 $ \x -> with c2 $ \y -> with c3 $ \z -> push3 x y z
+  watch c2 $ \y -> with c3 $ \z -> with c1 $ \x -> push3 x y z
+  watch c3 $ \z -> with c1 $ \x -> with c2 $ \y -> push3 x y z
+  where
+    push3 x y z = let (x', y', z') = r (x, y, z) in push c1 x' >> push c2 y' >> push c3 z'
