@@ -4,8 +4,8 @@
 module Data.Propagator.Cell where
 
 import Control.Monad.ST (ST)
+import Data.Partial
 import Data.Primitive.MutVar
-import Data.Propagator.Class
 
 -- | Cells hold partial information about a value and propagates
 data Cell s a = Cell
@@ -16,21 +16,21 @@ data Cell s a = Cell
 
 -- | Creates a new cell with the default update function and least information
 -- value for the type.
-empty :: (PartialInfo a) => ST s (Cell s a)
+empty :: (Partial a) => ST s (Cell s a)
 empty = emptyWith update
 
 -- | Creates a new cell with least information value and a custom update
 -- function.
-emptyWith :: (PartialInfo a) => (a -> a -> UpdateResult a) -> ST s (Cell s a)
+emptyWith :: (Partial a) => (a -> a -> UpdateResult a) -> ST s (Cell s a)
 emptyWith = filledWith bottom
 
 -- | Creates a new cell with the default update function, initialized with a
 -- custom initial value.
-filled :: (PartialInfo a) => a -> ST s (Cell s a)
+filled :: (Partial a) => a -> ST s (Cell s a)
 filled = flip filledWith update
 
 -- | Creates a new cell with both custom initial value and update function.
-filledWith :: (PartialInfo a) => a -> (a -> a -> UpdateResult a) -> ST s (Cell s a)
+filledWith :: a -> (a -> a -> UpdateResult a) -> ST s (Cell s a)
 filledWith val upd = Cell upd <$> newMutVar val <*> newMutVar (\_ -> pure ())
 
 -- | Get the current value of a cell
