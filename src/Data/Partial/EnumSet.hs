@@ -30,9 +30,20 @@ singleton = EnumSet . IntSet.singleton . fromEnum
 fromList :: (Bounded a, Enum a) => [a] -> EnumSet a
 fromList xs = EnumSet (IntSet.fromList $ fromEnum <$> xs)
 
--- | Convert and `EnumSet` to a list of values
+-- | Convert an `EnumSet` to a list of values
 toList :: EnumSet a -> [a]
 toList (EnumSet x) = toEnum <$> IntSet.toList x
+
+-- | Extracts the single element of the set if the size is exactly one, returns
+-- `Nothing` otherwise.
+only :: EnumSet a -> Maybe a
+only xs = case toList xs of
+  [x] -> Just x
+  _ -> Nothing
+
+-- | The number of elements in the set
+size :: EnumSet a -> Int
+size (EnumSet x) = IntSet.size x
 
 -- | Is the set empty?
 null :: EnumSet a -> Bool
