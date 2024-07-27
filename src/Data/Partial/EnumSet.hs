@@ -22,6 +22,18 @@ empty = EnumSet IntSet.empty
 universal :: (Bounded a, Enum a) => EnumSet a
 universal = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
 
+-- | Creates an `EnumSet` with a single possible value
+singleton :: (Bounded a, Enum a) => a -> EnumSet a
+singleton = EnumSet . IntSet.singleton . fromEnum
+
+-- | Construct an `EnumSet` from a list of values
+fromList :: (Bounded a, Enum a) => [a] -> EnumSet a
+fromList xs = EnumSet (IntSet.fromList $ fromEnum <$> xs)
+
+-- | Convert and `EnumSet` to a list of values
+toList :: EnumSet a -> [a]
+toList (EnumSet x) = toEnum <$> IntSet.toList x
+
 -- | Is the set empty?
 null :: EnumSet a -> Bool
 null (EnumSet x) = IntSet.null x
