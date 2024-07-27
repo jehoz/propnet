@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Data.Propagator.Cell where
+module Data.PropNet.Cell where
 
 import Control.Monad.ST (ST)
-import Data.Partial
 import Data.Primitive.MutVar
+import Data.PropNet.Partial
 
 -- | Cells hold partial information about a value and propagates
 data Cell s a = Cell

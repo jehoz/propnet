@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs #-}
 
-module Data.Partial.EnumSet where
+module Data.PropNet.Partial.EnumSet where
 
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet

@@ -1,6 +1,6 @@
-module Data.Partial where
+module Data.PropNet.Partial where
 
-import Data.Partial.EnumSet
+import Data.PropNet.Partial.EnumSet
 import Prelude hiding (null)
 
 -- | The different outcomes after merging two partial information values.
