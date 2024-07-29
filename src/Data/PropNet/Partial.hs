@@ -18,7 +18,7 @@ instance Functor UpdateResult where
   fmap _ Contradiction = Contradiction
 
 instance Applicative UpdateResult where
-  pure = Changed
+  pure = Unchanged
 
   Contradiction <*> _ = Contradiction
   _ <*> Contradiction = Contradiction
