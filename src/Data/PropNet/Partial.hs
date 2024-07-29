@@ -6,11 +6,31 @@ import Prelude hiding (null)
 -- | The different outcomes after merging two partial information values.
 data UpdateResult a
   = -- | The incoming value was redundant and provided no new information.
-    Unchanged
-  | -- | The incoming value gave us new information and our new value is `a`
+    Unchanged a
+  | -- | The incoming value gave us new information and our new value is x.
     Changed a
   | -- | New information and old information contradict each other.
     Contradiction
+
+instance Functor UpdateResult where
+  fmap f (Changed x) = Changed (f x)
+  fmap f (Unchanged x) = Unchanged (f x)
+  fmap _ Contradiction = Contradiction
+
+instance Applicative UpdateResult where
+  pure = Changed
+
+  Contradiction <*> _ = Contradiction
+  _ <*> Contradiction = Contradiction
+  Unchanged f <*> Unchanged x = Unchanged (f x)
+  Unchanged f <*> Changed x = Changed (f x)
+  Changed f <*> Unchanged x = Changed (f x)
+  Changed f <*> Changed x = Changed (f x)
+
+instance Monad UpdateResult where
+  Contradiction >>= _ = Contradiction
+  (Unchanged x) >>= f = f x
+  Changed x >>= f = f x >>= Changed
 
 -- | Class for a type that carries partial information about a value.
 --
@@ -33,9 +53,9 @@ class Partial a where
 instance (Eq a) => Partial (Maybe a) where
   bottom = Nothing
 
-  update _ Nothing = Unchanged
-  update (Just old) (Just new) =
-    if old /= new then Contradiction else Unchanged
+  update old@(Just x) (Just y) =
+    if x /= y then Contradiction else Unchanged old
+  update old Nothing = Unchanged old
   update Nothing x@(Just _) = Changed x
 
 -- | `EnumSet`s represent partial information as a set of possible values.
@@ -45,7 +65,7 @@ instance (Bounded a, Enum a) => Partial (EnumSet a) where
   bottom = universal
 
   update s1 s2
-    | s1 == s2 = Unchanged
+    | s1 == s2 = Unchanged s1
     | null s3 = Contradiction
     | otherwise = Changed s3
     where
