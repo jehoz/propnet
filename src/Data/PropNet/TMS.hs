@@ -1,7 +1,15 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE NoFieldSelectors #-}
+
 module Data.PropNet.TMS where
 
+import Control.Monad (foldM)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
+import Data.Hashable (Hashable (hashWithSalt))
+import Data.PropNet.Partial
 
 -- Truth Maintainance System
 -- A TMS is a set of conditional beliefs about its own state:
@@ -23,14 +31,36 @@ type Name = Int
 
 type Value = Int
 
-data Premise
-  = Given
-  | Assumption Name Value
+data Assumption = Assumption Name Value deriving (Eq)
+
+instance Hashable Assumption where
+  hashWithSalt s (Assumption n v) = hashWithSalt s (n, v)
+
+type Premise = HashSet Assumption
 
 data TMS a = TMS
-  { -- | A set of conditional beliefs about the current value
-    -- /"if some set of premises are true, then my value is x"/
-    beliefs :: HashMap (HashSet Premise) a,
-    -- | All of the combinations of premises that have been rejected.
+  { -- | A set of conditional beliefs about the current value:
+    -- /"if some set of set of assumptions are true, then my value is x"/
+    beliefs :: HashMap Premise a,
+    -- | All of the premises that have been rejected for producing contradictions
     badPremises :: HashSet Premise
   }
+  deriving (Eq)
+
+instance (Eq a, Partial a) => Partial (TMS a) where
+  bottom = TMS HashMap.empty HashSet.empty
+
+  update t1 t2 = case updateBeliefs t1.beliefs t2.beliefs of
+    Contradiction -> Contradiction
+    Unchanged _ -> if t1.badPremises /= bad then Changed (TMS t1.beliefs bad) else Unchanged t1
+    Changed beliefs' -> Changed (TMS beliefs' bad)
+    where
+      bad = HashSet.union t1.badPremises t2.badPremises
+
+      updateBeliefs old new = foldM integrateBelief old (HashMap.toList new)
+
+      integrateBelief blfs (newPrem, newVal) =
+        let res = sequenceA $ case HashMap.lookup newPrem blfs of
+              Just oldVal -> HashMap.singleton newPrem (update oldVal newVal)
+              Nothing -> HashMap.fromList $ (\(oldPrem, oldVal) -> (HashSet.union oldPrem newPrem, update oldVal newVal)) <$> HashMap.toList blfs
+         in flip HashMap.union blfs <$> res
