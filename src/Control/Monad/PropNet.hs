@@ -6,7 +6,7 @@ module Control.Monad.PropNet where
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (StateT, evalStateT)
+import Control.Monad.State (MonadState, StateT, evalStateT, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
@@ -22,7 +22,7 @@ data PropNetState = PropNetState
 
 newtype PropNetT (m :: Type -> Type) (a :: Type) = PropNetT
   {unPropNetT :: (StateT PropNetState m) a}
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadState PropNetState)
 
 instance MonadTrans PropNetT where
   lift = PropNetT . lift
@@ -43,14 +43,15 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
     (val, ns) <- readMutVar body
     case update val new of
       Unchanged _ -> pure ()
-      Changed x -> do
-        writeMutVar body (x, ns)
-        ns x
+      Changed x -> writeMutVar body (x, ns) >> ns x
       Contradiction -> error "UH OH!"
 
   watch (Cell body) sub = do
     (val, subs) <- readMutVar body
     writeMutVar body (val, \x -> subs x >> sub x)
+
+runPropNetT :: (Monad m) => PropNetT m a -> m (a, PropNetState)
+runPropNetT = flip runStateT (PropNetState 0 HashSet.empty) . unPropNetT
 
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
 evalPropNetT = flip evalStateT (PropNetState 0 HashSet.empty) . unPropNetT
