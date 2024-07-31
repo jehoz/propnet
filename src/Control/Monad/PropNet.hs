@@ -6,9 +6,10 @@ module Control.Monad.PropNet where
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (StateT)
+import Control.Monad.State (StateT, evalStateT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
 import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (UpdateResult (..), update)
@@ -20,7 +21,7 @@ data PropNetState = PropNetState
   }
 
 newtype PropNetT (m :: Type -> Type) (a :: Type) = PropNetT
-  {runPropNetT :: (StateT PropNetState m) a}
+  {unPropNetT :: (StateT PropNetState m) a}
   deriving (Functor, Applicative, Monad)
 
 instance MonadTrans PropNetT where
@@ -29,7 +30,7 @@ instance MonadTrans PropNetT where
 instance (PrimMonad m) => PrimMonad (PropNetT m) where
   type PrimState (PropNetT m) = PrimState m
 
-  primitive = primitive
+  primitive = lift . primitive
 
 instance (PrimMonad m) => MonadPropNet (PropNetT m) where
   data Cell (PropNetT m) a = Cell (MutVar (PrimState m) (a, a -> PropNetT m ()))
@@ -51,6 +52,9 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
     (val, subs) <- readMutVar body
     writeMutVar body (val, \x -> subs x >> sub x)
 
-newtype PropNetIO a = PropNetIO {runPropNetIO :: PropNetT IO a}
+evalPropNetT :: (Monad m) => PropNetT m a -> m a
+evalPropNetT = flip evalStateT (PropNetState 0 HashSet.empty) . unPropNetT
 
-newtype PropNetST s a = PropNetST {runPropNetST :: PropNetT (ST s) a}
+type PropNetIO a = PropNetT IO a
+
+type PropNetST s a = PropNetT (ST s) a
