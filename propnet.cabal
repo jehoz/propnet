@@ -18,7 +18,6 @@ library
     exposed-modules:
       , Control.Monad.PropNet
       , Control.Monad.PropNet.Class
-      , Data.PropNet.Cell
       , Data.PropNet.Partial
       , Data.PropNet.Partial.EnumSet
       , Data.PropNet.TMS
