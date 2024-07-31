@@ -11,6 +11,7 @@ data UpdateResult a
     Changed a
   | -- | New information and old information contradict each other.
     Contradiction
+  deriving (Eq, Show)
 
 instance Functor UpdateResult where
   fmap f (Changed x) = Changed (f x)
@@ -29,8 +30,10 @@ instance Applicative UpdateResult where
 
 instance Monad UpdateResult where
   Contradiction >>= _ = Contradiction
-  (Unchanged x) >>= f = f x
-  Changed x >>= f = f x >>= Changed
+  Unchanged x >>= f = f x
+  Changed x >>= f = case f x of
+    Unchanged y -> Changed y
+    other -> other
 
 -- | Class for a type that carries partial information about a value.
 --
