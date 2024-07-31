@@ -37,3 +37,52 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
   -- running whenever the cell changes, runs once immediately.
   with :: Cell m a -> (a -> m ()) -> m ()
   with cell = (peek cell >>=)
+
+-- | Creates a one-way propagator from a unary function.
+liftUnary ::
+  (MonadPropNet m, Partial a, Partial b) =>
+  (a -> b) ->
+  Cell m a ->
+  Cell m b ->
+  m ()
+liftUnary f c1 c2 = watch c1 $ \x -> push c2 (f x)
+
+-- | Creates a two-way propagator from a unary function and its inverse.
+liftUnaryR ::
+  (MonadPropNet m, Partial a, Partial b) =>
+  ((a, b) -> (a, b)) ->
+  Cell m a ->
+  Cell m b ->
+  m ()
+liftUnaryR r c1 c2 = do
+  watch c1 $ \x -> with c2 $ \y -> push2 x y
+  watch c2 $ \y -> with c1 $ \x -> push2 x y
+  where
+    push2 x y = let (x', y') = r (x, y) in push c1 x' >> push c2 y'
+
+-- | Creates a one-way propagator from a binary function.
+liftBinary ::
+  (MonadPropNet m, Partial a, Partial b, Partial c) =>
+  (a -> b -> c) ->
+  Cell m a ->
+  Cell m b ->
+  Cell m c ->
+  m ()
+liftBinary f c1 c2 c3 = do
+  watch c1 $ \x -> with c2 $ \y -> push c3 (f x y)
+  watch c2 $ \y -> with c1 $ \x -> push c3 (f x y)
+
+-- | Creates a two-way propagator from a binary function and its inverses.
+liftBinaryR ::
+  (MonadPropNet m, Partial a, Partial b, Partial c) =>
+  ((a, b, c) -> (a, b, c)) ->
+  Cell m a ->
+  Cell m b ->
+  Cell m c ->
+  m ()
+liftBinaryR r c1 c2 c3 = do
+  watch c1 $ \x -> with c2 $ \y -> with c3 $ \z -> push3 x y z
+  watch c2 $ \y -> with c3 $ \z -> with c1 $ \x -> push3 x y z
+  watch c3 $ \z -> with c1 $ \x -> with c2 $ \y -> push3 x y z
+  where
+    push3 x y z = let (x', y', z') = r (x, y, z) in push c1 x' >> push c2 y' >> push c3 z'
