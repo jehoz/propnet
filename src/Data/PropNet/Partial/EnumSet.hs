@@ -1,4 +1,6 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Data.PropNet.Partial.EnumSet where
 
@@ -19,8 +21,8 @@ empty :: (Bounded a, Enum a) => EnumSet a
 empty = EnumSet IntSet.empty
 
 -- | The universal set (all possible values)
-universal :: (Bounded a, Enum a) => EnumSet a
-universal = EnumSet (IntSet.fromDistinctAscList [minBound .. maxBound])
+universal :: forall a. (Bounded a, Enum a) => EnumSet a
+universal = EnumSet (IntSet.fromDistinctAscList [fromEnum (minBound @a) .. fromEnum (maxBound @a)])
 
 -- | Creates an `EnumSet` with a single possible value
 singleton :: (Bounded a, Enum a) => a -> EnumSet a
