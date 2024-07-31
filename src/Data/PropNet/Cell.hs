@@ -7,7 +7,7 @@ import Control.Monad.ST (ST)
 import Data.Primitive.MutVar
 import Data.PropNet.Partial
 
--- | Cells hold partial information about a value and propagates
+-- | Cells hold partial information about a value and propagate
 data Cell s a = Cell
   { update :: a -> a -> UpdateResult a,
     value :: MutVar s a,
@@ -43,11 +43,11 @@ push :: Cell s a -> a -> ST s ()
 push cell new = do
   old <- readMutVar cell.value
   case cell.update old new of
-    Unchanged -> pure ()
-    Changed a -> do
-      writeMutVar cell.value a
+    Unchanged _ -> pure ()
+    Changed x -> do
+      writeMutVar cell.value x
       prop <- readMutVar cell.subs
-      prop a
+      prop x
     Contradiction -> error "uh oh!"
 
 -- | Register a subscription function for a cell.  When the cell's value is
