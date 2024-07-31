@@ -47,6 +47,12 @@ data TMS a = TMS
   }
   deriving (Eq)
 
+empty :: TMS a
+empty = TMS HashMap.empty HashSet.empty
+
+fromGiven :: a -> TMS a
+fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
+
 instance (Eq a, Partial a) => Partial (TMS a) where
   bottom = TMS HashMap.empty HashSet.empty
 
