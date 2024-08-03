@@ -1,10 +1,13 @@
+{-# LANGUAGE KindSignatures #-}
+
 module Data.PropNet.Partial where
 
+import Data.Kind (Type)
 import Data.PropNet.Partial.EnumSet
 import Prelude hiding (null)
 
 -- | The different outcomes after merging two partial information values.
-data UpdateResult a
+data UpdateResult (a :: Type)
   = -- | The incoming value was redundant and provided no new information.
     Unchanged a
   | -- | The incoming value gave us new information and our new value is x.
@@ -42,7 +45,7 @@ instance Monad UpdateResult where
 -- Updating with new information moves up the lattice, ideally culminating in a
 -- fully defined value.  Updating with conflicting information should produce a
 -- contradiction.
-class Partial a where
+class (Eq a) => Partial (a :: Type) where
   -- | The bottom of the lattice, representing the least amount of information
   -- we can know about a value.
   bottom :: a
