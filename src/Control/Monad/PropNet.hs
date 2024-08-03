@@ -1,12 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoFieldSelectors #-}
 
 module Control.Monad.PropNet where
 
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (MonadState, StateT, evalStateT, runStateT)
+import Control.Monad.State (MonadState (get, put), StateT, evalStateT, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
@@ -16,12 +18,14 @@ import Data.PropNet.Partial (UpdateResult (..), update)
 import qualified Data.PropNet.TMS as TMS
 
 data PropNetState = PropNetState
-  { idCounter :: Int,
+  { -- | An incrementing counter for assigning each new cell a unique 'Name'
+    nameCounter :: TMS.Name,
+    -- | Set of unique premises which have resulted in contradictions
     badPremises :: HashSet TMS.Premise
   }
 
 newtype PropNetT (m :: Type -> Type) (a :: Type) = PropNetT
-  {unPropNetT :: (StateT PropNetState m) a}
+  {unPropNetT :: StateT PropNetState m a}
   deriving (Functor, Applicative, Monad, MonadState PropNetState)
 
 instance MonadTrans PropNetT where
@@ -33,28 +37,43 @@ instance (PrimMonad m) => PrimMonad (PropNetT m) where
   primitive = lift . primitive
 
 instance (PrimMonad m) => MonadPropNet (PropNetT m) where
-  data Cell (PropNetT m) a = Cell (MutVar (PrimState m) (a, a -> PropNetT m ()))
+  data Cell (PropNetT m) a = Cell
+    { name :: TMS.Name,
+      body :: MutVar (PrimState m) (a, a -> PropNetT m ())
+    }
 
-  filled v = Cell <$> newMutVar (v, \_ -> pure ())
+  filled v = do
+    name <- nextCellName
+    body <- newMutVar (v, \_ -> pure ())
+    pure $ Cell name body
 
-  peek (Cell body) = fst <$> readMutVar body
+  peek cell = fst <$> readMutVar cell.body
 
-  push (Cell body) new = do
-    (val, ns) <- readMutVar body
+  push cell new = do
+    (val, ns) <- readMutVar cell.body
     case update val new of
       Unchanged _ -> pure ()
-      Changed x -> writeMutVar body (x, ns) >> ns x
-      Contradiction -> error "UH OH!"
+      Changed x -> writeMutVar cell.body (x, ns) >> ns x
+      Contradiction -> error "Contradiction!"
 
-  watch (Cell body) sub = do
-    (val, subs) <- readMutVar body
-    writeMutVar body (val, \x -> subs x >> sub x)
+  watch cell sub = do
+    (val, subs) <- readMutVar cell.body
+    writeMutVar cell.body (val, \x -> subs x >> sub x)
 
 runPropNetT :: (Monad m) => PropNetT m a -> m (a, PropNetState)
-runPropNetT = flip runStateT (PropNetState 0 HashSet.empty) . unPropNetT
+runPropNetT p = runStateT p.unPropNetT (PropNetState 0 HashSet.empty)
 
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
-evalPropNetT = flip evalStateT (PropNetState 0 HashSet.empty) . unPropNetT
+evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 HashSet.empty)
+
+-- | Emits a new (unique) cell ID.  This should be called once for each new
+-- cell that gets created so that each has a unique ID.
+nextCellName :: (Monad m) => PropNetT m TMS.Name
+nextCellName = do
+  PropNetState nameCtr bad <- get
+  let x = nameCtr
+  put (PropNetState (nameCtr + 1) bad)
+  pure x
 
 type PropNetIO a = PropNetT IO a
 
