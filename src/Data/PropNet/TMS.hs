@@ -47,11 +47,8 @@ data TMS a = TMS
   }
   deriving (Eq)
 
-empty :: TMS a
-empty = TMS HashMap.empty HashSet.empty
-
-fromGiven :: a -> TMS a
-fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
+instance Functor TMS where
+  fmap f (TMS blfs bad) = TMS (fmap f blfs) bad
 
 instance (Eq a, Partial a) => Partial (TMS a) where
   bottom = TMS HashMap.empty HashSet.empty
@@ -70,3 +67,11 @@ instance (Eq a, Partial a) => Partial (TMS a) where
               Just oldVal -> HashMap.singleton newPrem (update oldVal newVal)
               Nothing -> HashMap.fromList $ (\(oldPrem, oldVal) -> (HashSet.union oldPrem newPrem, update oldVal newVal)) <$> HashMap.toList blfs
          in flip HashMap.union blfs <$> res
+
+-- | A TMS with no information (no beliefs, not bad premises)
+empty :: TMS a
+empty = TMS HashMap.empty HashSet.empty
+
+-- | Create a TMS which takes the specified value as a given.
+fromGiven :: a -> TMS a
+fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
