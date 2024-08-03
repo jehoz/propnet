@@ -43,7 +43,7 @@ data TMS a = TMS
     -- /"if some set of set of assumptions are true, then my value is x"/
     beliefs :: HashMap Premise a,
     -- | All of the premises that have been rejected for producing contradictions
-    badPremises :: HashSet Premise
+    rejected :: HashSet Premise
   }
   deriving (Eq)
 
@@ -55,10 +55,10 @@ instance (Eq a, Partial a) => Partial (TMS a) where
 
   update t1 t2 = case updateBeliefs t1.beliefs t2.beliefs of
     Contradiction -> Contradiction
-    Unchanged _ -> if t1.badPremises /= bad then Changed (TMS t1.beliefs bad) else Unchanged t1
-    Changed beliefs' -> Changed (TMS beliefs' bad)
+    Unchanged _ -> if t1.rejected /= rejected then Changed (TMS t1.beliefs rejected) else Unchanged t1
+    Changed beliefs' -> Changed (TMS beliefs' rejected)
     where
-      bad = HashSet.union t1.badPremises t2.badPremises
+      rejected = HashSet.union t1.rejected t2.rejected
 
       updateBeliefs old new = foldM integrateBelief old (HashMap.toList new)
 
@@ -68,10 +68,35 @@ instance (Eq a, Partial a) => Partial (TMS a) where
               Nothing -> HashMap.fromList $ (\(oldPrem, oldVal) -> (HashSet.union oldPrem newPrem, update oldVal newVal)) <$> HashMap.toList blfs
          in flip HashMap.union blfs <$> res
 
--- | A TMS with no information (no beliefs, not bad premises)
+-- | A TMS with no information (no beliefs, no rejected premises)
 empty :: TMS a
 empty = TMS HashMap.empty HashSet.empty
 
 -- | Create a TMS which takes the specified value as a given.
 fromGiven :: a -> TMS a
 fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
+
+-- | Add a belief to the TMS, overwriting any previous belief with the same
+-- premise.
+believe :: (Premise, a) -> TMS a -> TMS a
+believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
+
+-- | Add a premise to the rejection set.
+reject :: Premise -> TMS a -> TMS a
+reject prem (TMS blfs rej) = TMS blfs (HashSet.insert prem rej)
+
+-- | Takes in a new belief (some value and the premise it's dependent on) and
+-- tries to reconcile it with the other beliefs in the `TMS`.
+-- If any contradictions are found, those premises are stored in the rejected
+-- set.
+assimilate :: (Partial a) => (Premise, a) -> TMS a -> TMS a
+assimilate (prem, newVal) tms = foldr handleResult tms results
+  where
+    results = case HashMap.lookup prem tms.beliefs of
+      Just oldVal -> [(prem, update oldVal newVal)]
+      Nothing -> (\(oldPrem, oldVal) -> (HashSet.union oldPrem prem, update oldVal newVal)) <$> HashMap.toList tms.beliefs
+
+    handleResult (p, res) = case res of
+      Changed x -> believe (p, x)
+      Unchanged _ -> id
+      Contradiction -> reject p
