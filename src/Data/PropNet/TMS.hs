@@ -9,6 +9,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
+import Data.List (nubBy, sortOn)
 import Data.PropNet.Partial
 
 -- Truth Maintainance System
@@ -31,7 +32,7 @@ type Name = Int
 
 type Value = Int
 
-data Assumption = Assumption Name Value deriving (Eq)
+data Assumption = Assumption Name Value deriving (Eq, Show)
 
 instance Hashable Assumption where
   hashWithSalt s (Assumption n v) = hashWithSalt s (n, v)
@@ -48,7 +49,7 @@ data TMS a = TMS
   deriving (Eq)
 
 instance Functor TMS where
-  fmap f (TMS blfs bad) = TMS (fmap f blfs) bad
+  fmap f (TMS blfs rej) = TMS (fmap f blfs) rej
 
 instance (Eq a, Partial a) => Partial (TMS a) where
   bottom = TMS HashMap.empty HashSet.empty
@@ -100,3 +101,11 @@ assimilate (prem, newVal) tms = foldr handleResult tms results
       Changed x -> believe (p, x)
       Unchanged _ -> id
       Contradiction -> reject p
+
+-- | Prune redundant premises from rejected set and remove any beliefs that
+-- depent on any rejected premise.
+reanalyze :: TMS a -> TMS a
+reanalyze (TMS blfs rej) =
+  let rej' = HashSet.fromList $ nubBy HashSet.isSubsetOf $ sortOn HashSet.size (HashSet.toList rej)
+      blfs' = HashMap.filterWithKey (\prem _ -> not $ any (`HashSet.isSubsetOf` prem) rej') blfs
+   in TMS blfs' rej
