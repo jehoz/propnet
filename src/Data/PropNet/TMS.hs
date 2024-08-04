@@ -12,36 +12,49 @@ import Data.Hashable (Hashable (hashWithSalt))
 import Data.List (nubBy, sortOn)
 import Data.PropNet.Partial
 
--- Truth Maintainance System
--- A TMS is a set of conditional beliefs about its own state:
---   if x=1 then (a, b, c, d, or e)
---   if x=1 & y=2 then (a, b, or c)
--- The premise refers to some cell in the network and an assumed value for that
--- cell.
-
--- The beginning state of the network and deductions from it are dependent on Given
--- When a branch point is reached, an Assumption premise is made for some Cell
--- (picked for least entropy) for each possible value of Cell.  Then we do something like
--- tryWith (Assumption C3 7)
--- the assumption is added to the set of premises by applying the value 7 to C3
--- belief with that assumption as dependency.
--- then downstream cells update their value with that dependency
--- if it fails, add it to set of rejected premises
-
+-- | A unique identifier for a parameter in our system (ie. some `Cell` in the
+-- propagator network).
 type Name = Int
 
+-- | An integer encoding a defined value for some cell.
 type Value = Int
 
+-- | The assumption that some cell has some defined value.
+--
+-- An `Assumption` is primarily a way of representing a branch in a search tree.
+-- The exact way of assigning `Name`s to cells and encoding their values as
+-- `Value`s shouldn't matter as long as both mappings are injective.
 data Assumption = Assumption Name Value deriving (Eq, Show)
 
 instance Hashable Assumption where
   hashWithSalt s (Assumption n v) = hashWithSalt s (n, v)
 
+-- | The antecedent of some belief.  For our purposes this will always be a
+-- conjunction of some number of `Assumption`s which we store in a set.
+-- The empty set, in this case, represents a given.
 type Premise = HashSet Assumption
 
+-- | A Truth Maintainance System simultaneously holds multiple (potentially
+-- conflicting) conditional beliefs about a particular value.
+--
+-- Each belief is dependent on some `Premise`, and dictates what we know about
+-- our value if that premise is true.  For example, if we use an `EnumSet` to
+-- represent a set of finite possibilities for our value, then our beliefs would
+-- look like this:
+--
+-- * if \(x=1\) then my value is in the set \(\{ a, b, c, d, e \}\)
+-- * if \(x=1\) and \(y=2\) then my value is in the set \(\{ a, b, d \}\)
+-- * etc.
+--
+-- We maintain multiple beliefs simultaneously because we will almost certainly
+-- discover that some of the premises result in contradictions as we propagate
+-- information throughout our system.  When this happens, the `TMS` rejects the
+-- premise, discarding any beliefs which depended on it, and remembers the
+-- rejected premise so that no future beliefs can be established which depend on
+-- it.  This lets our system collectively "learn" to avoid large chunks of the
+-- search space which will invariably lead to contradictions.
 data TMS a = TMS
-  { -- | A set of conditional beliefs about the current value:
-    -- /"if some set of set of assumptions are true, then my value is x"/
+  { -- | A set of conditional beliefs about the current value.
     beliefs :: HashMap Premise a,
     -- | All of the premises that have been rejected for producing contradictions
     rejected :: HashSet Premise
