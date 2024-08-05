@@ -67,20 +67,13 @@ instance Functor TMS where
 instance (Eq a, Partial a) => Partial (TMS a) where
   bottom = TMS HashMap.empty HashSet.empty
 
-  update t1 t2 = case updateBeliefs t1.beliefs t2.beliefs of
-    Contradiction -> Contradiction
-    Unchanged _ -> if t1.rejected /= rejected then Changed (TMS t1.beliefs rejected) else Unchanged t1
-    Changed beliefs' -> Changed (TMS beliefs' rejected)
+  update t1 t2
+    -- rejecting the given premise (empty set) means there is no solution
+    | HashSet.member HashSet.empty t3.rejected = Contradiction
+    | t1 == t3 = Unchanged t1
+    | otherwise = Changed t3
     where
-      rejected = HashSet.union t1.rejected t2.rejected
-
-      updateBeliefs old new = foldM integrateBelief old (HashMap.toList new)
-
-      integrateBelief blfs (newPrem, newVal) =
-        let res = sequenceA $ case HashMap.lookup newPrem blfs of
-              Just oldVal -> HashMap.singleton newPrem (update oldVal newVal)
-              Nothing -> HashMap.fromList $ (\(oldPrem, oldVal) -> (HashSet.union oldPrem newPrem, update oldVal newVal)) <$> HashMap.toList blfs
-         in flip HashMap.union blfs <$> res
+      t3 = combine t1 t2
 
 -- | A TMS with no information (no beliefs, no rejected premises)
 empty :: TMS a
