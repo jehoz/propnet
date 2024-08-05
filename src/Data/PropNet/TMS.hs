@@ -3,7 +3,6 @@
 
 module Data.PropNet.TMS where
 
-import Control.Monad (foldM)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
@@ -66,6 +65,9 @@ instance Functor TMS where
 
 instance (Eq a, Partial a) => Partial (TMS a) where
   bottom = TMS HashMap.empty HashSet.empty
+
+  leq (TMS blfs1 rej1) (TMS blfs2 rej2) =
+    blfs1 `HashMap.isSubmapOf` blfs2 && rej1 `HashSet.isSubsetOf` rej2
 
   update t1 t2
     -- rejecting the given premise (empty set) means there is no solution
