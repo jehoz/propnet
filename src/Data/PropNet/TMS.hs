@@ -48,7 +48,7 @@ type Premise = HashSet Assumption
 --
 -- We maintain multiple beliefs simultaneously because we will almost certainly
 -- discover that some of the premises result in contradictions as we propagate
--- information throughout our system.  When this happens, the `TMS` rejects the
+-- information throughout our system.  When this happens, the TMS rejects the
 -- premise, discarding any beliefs which depended on it, and remembers the
 -- rejected premise so that no future beliefs can be established which depend on
 -- it.  This lets our system collectively "learn" to avoid large chunks of the
@@ -59,7 +59,7 @@ data TMS a = TMS
     -- | All of the premises that have been rejected for producing contradictions
     rejected :: HashSet Premise
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 instance Functor TMS where
   fmap f (TMS blfs rej) = TMS (fmap f blfs) rej
@@ -92,19 +92,48 @@ fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
 
 -- | Add a belief to the TMS, overwriting any previous belief with the same
 -- premise.
+--
+-- __NOTE__: This does not affect any of the other beliefs in the TMS or ensure
+-- that the premise is valid. If that is what you want, use `assimilate`.
 believe :: (Premise, a) -> TMS a -> TMS a
 believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 
 -- | Add a premise to the rejection set.
+--
+-- __NOTE__: This does not discard current beliefs that depend on the rejected
+-- premise.  If you use this function directly, you probably want to `reanalyze`
+-- the TMS afterwards.
 reject :: Premise -> TMS a -> TMS a
 reject prem (TMS blfs rej) = TMS blfs (HashSet.insert prem rej)
 
--- | Takes in a new belief (some value and the premise it's dependent on) and
--- tries to reconcile it with the other beliefs in the `TMS`.
+-- | Is the premise valid? (does it not contain any rejected premise?)
+isPlausible :: Premise -> TMS a -> Bool
+isPlausible prem tms = not $ any (`HashSet.isSubsetOf` prem) tms.rejected
+
+-- | Prune redundant premises from rejected set and remove any beliefs that
+-- depent on any rejected premise.
+--
+-- This is done for you when you `assimilate` or `combine`, so you probably
+-- shouldn't need to use this function directly.
+reanalyze :: TMS a -> TMS a
+reanalyze (TMS blfs rej) =
+  let rej' = HashSet.fromList $ nubBy HashSet.isSubsetOf $ sortOn HashSet.size (HashSet.toList rej)
+      blfs' = HashMap.filterWithKey (\prem _ -> isPlausible prem (TMS blfs rej')) blfs
+   in TMS blfs' rej
+
+-- | Takes in a new belief and logically combines it with the other beliefs in
+-- the TMS.
 -- If any contradictions are found, those premises are stored in the rejected
 -- set.
 assimilate :: (Partial a) => (Premise, a) -> TMS a -> TMS a
-assimilate (prem, newVal) tms = foldr handleResult tms results
+assimilate blf = reanalyze . assimilateInner blf
+
+-- | Assimilate without reanalyzing
+assimilateInner :: (Partial a) => (Premise, a) -> TMS a -> TMS a
+assimilateInner (prem, newVal) tms =
+  if isPlausible prem tms
+    then foldr handleResult tms results
+    else tms
   where
     results = case HashMap.lookup prem tms.beliefs of
       Just oldVal -> [(prem, update oldVal newVal)]
@@ -115,10 +144,9 @@ assimilate (prem, newVal) tms = foldr handleResult tms results
       Unchanged _ -> id
       Contradiction -> reject p
 
--- | Prune redundant premises from rejected set and remove any beliefs that
--- depent on any rejected premise.
-reanalyze :: TMS a -> TMS a
-reanalyze (TMS blfs rej) =
-  let rej' = HashSet.fromList $ nubBy HashSet.isSubsetOf $ sortOn HashSet.size (HashSet.toList rej)
-      blfs' = HashMap.filterWithKey (\prem _ -> not $ any (`HashSet.isSubsetOf` prem) rej') blfs
-   in TMS blfs' rej
+-- | Like `assimilate` but combines all of the beliefs in one TMS with all of
+-- the beliefs in another, and takes the union of their two rejected sets.
+combine :: (Partial a) => TMS a -> TMS a -> TMS a
+combine t1 t2 =
+  let rejected = HashSet.union t1.rejected t2.rejected
+   in reanalyze $ foldr assimilateInner (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
