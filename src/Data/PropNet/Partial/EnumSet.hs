@@ -66,3 +66,7 @@ difference (EnumSet x) (EnumSet y) = EnumSet (IntSet.difference x y)
 -- | The complement of a set
 complement :: (Bounded a, Enum a) => EnumSet a -> EnumSet a
 complement = difference universal
+
+-- | Is the first argument a subset of the second argument?
+isSubsetOf :: EnumSet a -> EnumSet a -> Bool
+isSubsetOf (EnumSet s1) (EnumSet s2) = IntSet.isSubsetOf s1 s2

@@ -50,6 +50,11 @@ class (Eq a) => Partial (a :: Type) where
   -- we can know about a value.
   bottom :: a
 
+  -- | The partial order relation (<=) over elements of the semilattice.
+  -- If @x `leq` y == True@ then @y@ should contain the same information @x@ or
+  -- strictly more without any contradictions.
+  leq :: a -> a -> Bool
+
   -- | Merge the current value (first argument) with a new incoming value
   -- (second argument).
   update :: a -> a -> UpdateResult a
@@ -58,6 +63,11 @@ class (Eq a) => Partial (a :: Type) where
 -- information or complete information about a value.
 instance (Eq a) => Partial (Maybe a) where
   bottom = Nothing
+
+  Nothing `leq` Nothing = True
+  Nothing `leq` Just _ = True
+  Just _ `leq` Nothing = False
+  Just x `leq` Just y = x == y
 
   update old@(Just x) (Just y) =
     if x /= y then Contradiction else Unchanged old
@@ -69,6 +79,8 @@ instance (Eq a) => Partial (Maybe a) where
 -- possibilities for a value, thus increasing the information.
 instance (Bounded a, Enum a) => Partial (EnumSet a) where
   bottom = universal
+
+  leq = flip isSubsetOf
 
   update s1 s2
     | s1 == s2 = Unchanged s1
