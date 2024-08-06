@@ -3,6 +3,7 @@
 module Data.PropNet.Partial where
 
 import Data.Kind (Type)
+import Data.List (nub)
 import Data.PropNet.Partial.EnumSet
 import Prelude hiding (null)
 
@@ -88,3 +89,11 @@ instance (Bounded a, Enum a) => Partial (EnumSet a) where
     | otherwise = Changed s3
     where
       s3 = intersection s1 s2
+
+-- | Get subset of items in list that are not less than any other item
+maxima :: (Partial a) => [a] -> [a]
+maxima xs = filter (\x -> not $ any (\y -> y /= x && x `leq` y) xs) (nub xs)
+
+-- | Get subset of items in list that are not greater than any other item
+minima :: (Partial a) => [a] -> [a]
+minima xs = filter (\x -> not $ any (\y -> y /= x && y `leq` x) xs) (nub xs)
