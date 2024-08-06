@@ -85,6 +85,10 @@ empty = TMS HashMap.empty HashSet.empty
 fromGiven :: a -> TMS a
 fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
 
+-- | Get values of current beliefs which have the most information.
+bestGuesses :: (Partial a) => TMS a -> [a]
+bestGuesses (TMS blfs _) = maxima (HashMap.elems blfs)
+
 -- | Add a belief to the TMS, overwriting any previous belief with the same
 -- premise.
 --
