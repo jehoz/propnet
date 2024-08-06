@@ -13,6 +13,9 @@ import qualified Data.IntSet as IntSet
 data EnumSet a where
   EnumSet :: (Bounded a, Enum a) => IntSet -> EnumSet a
 
+instance (Show a) => Show (EnumSet a) where
+  show x = "fromList " ++ show (toList x)
+
 instance Eq (EnumSet a) where
   (EnumSet x) == (EnumSet y) = x == y
 
