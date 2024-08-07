@@ -7,6 +7,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.Maybe (fromMaybe)
 import Data.PropNet.Partial (Partial, bottom)
+import Data.PropNet.Partial.EnumSet (EnumSet)
+import qualified Data.PropNet.Partial.EnumSet as EnumSet
 import Data.PropNet.TMS (TMS (..), believe)
 
 type BinaryR a b = ((a, b) -> (a, b))
@@ -30,7 +32,7 @@ liftTms2 r (t1, t2) = foldr iter (initTms, initTms) prems -- should we reanalyze
 
 -- | Lift a ternary relation over three types into a relation over three
 -- `TMS`'s of those types.
-liftTms3 :: (Partial a, Partial b, Partial c) => ((a, b, c) -> (a, b, c)) -> (TMS a, TMS b, TMS c) -> (TMS a, TMS b, TMS c)
+liftTms3 :: (Partial a, Partial b, Partial c) => TernaryR a b c -> TernaryR (TMS a) (TMS b) (TMS c)
 liftTms3 r (t1, t2, t3) = foldr iter (initTms, initTms, initTms) prems
   where
     initTms = TMS HashMap.empty (HashSet.unions [t1.rejected, t2.rejected, t3.rejected])
@@ -43,3 +45,12 @@ liftTms3 r (t1, t2, t3) = foldr iter (initTms, initTms, initTms) prems
           z = fromMaybe bottom (HashMap.lookup p t3.beliefs)
           (x', y', z') = r (x, y, z)
        in (believe (p, x') t1', believe (p, y') t2', believe (p, z') t3')
+
+-- | A relation between `EnumSet`s of the same type which declares that if the
+-- value of one is known, the other cannot be that known value (and vice versa).
+distinct :: (Bounded a, Enum a) => BinaryR (EnumSet a) (EnumSet a)
+distinct (x, y) =
+  let f old new = if EnumSet.size new == 1 then EnumSet.difference old new else old
+      x' = f x y
+      y' = f y x
+   in (x', y')
