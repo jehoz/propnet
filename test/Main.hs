@@ -42,17 +42,16 @@ createSudokuNetwork = do
 pushPuzzleInput :: [SudokuCell] -> PropNetIO ()
 pushPuzzleInput cells =
   let inputs =
-        read
-          <$> words
-            "0 0 0 0 0 0 0 0 7 \
-            \7 2 0 3 0 9 0 0 1 \
-            \0 0 8 7 0 5 0 6 0 \
-            \5 0 2 8 9 0 0 0 0 \
-            \0 4 0 5 0 1 0 9 0 \
-            \0 0 0 0 6 3 7 0 5 \
-            \0 3 0 9 0 6 1 0 0 \
-            \2 0 0 1 0 7 0 5 3 \
-            \9 0 0 0 0 0 0 0 0"
+        read . pure
+          <$> "800000000\
+              \003600000\
+              \070090200\
+              \050007000\
+              \000045700\
+              \000100030\
+              \001000068\
+              \008500010\
+              \090000400"
    in zipWithM_
         (\c i -> when (i /= 0) (push c $ fromGiven (singleton $ toEnum $ i - 1)))
         cells
