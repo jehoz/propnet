@@ -9,7 +9,7 @@ import Data.Foldable (for_, traverse_)
 import Data.List (tails, transpose)
 import Data.PropNet.Partial
 import Data.PropNet.Partial.EnumSet hiding (empty)
-import Data.PropNet.Relation (liftTms2)
+import Data.PropNet.Relation (distinct, liftTms2)
 import Data.PropNet.TMS (TMS (..), bestGuesses, fromGiven)
 import Data.Traversable (for)
 
@@ -26,23 +26,6 @@ chunksOf n l = take n l : chunksOf n (drop n l)
 
 uniquePairs :: [a] -> [(a, a)]
 uniquePairs xs = [(x, y) | (x : ys) <- tails xs, y <- ys]
-
-enforce ::
-  (MonadPropNet m, Traversable t, Partial a) =>
-  (t (Cell m (TMS a)) -> t (Cell m (TMS a), Cell m (TMS a))) ->
-  ((a, a) -> (a, a)) ->
-  t (Cell m (TMS a)) ->
-  m ()
-enforce query rel cs = do
-  let pairs = query cs
-  traverse_ (uncurry (enforceBinary $ liftTms2 rel)) pairs
-
-distinct :: (Bounded a, Enum a) => (EnumSet a, EnumSet a) -> (EnumSet a, EnumSet a)
-distinct (x, y) =
-  let f old new = if size new == 1 then difference old new else old
-      x' = f x y
-      y' = f y x
-   in (x', y')
 
 createSudokuNetwork :: PropNetIO [SudokuCell]
 createSudokuNetwork = do
