@@ -8,8 +8,10 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
-import Data.List (nubBy, sortOn)
+import Data.List (nub, nubBy, sortOn)
 import Data.PropNet.Partial
+import Data.PropNet.Partial.EnumSet (EnumSet)
+import qualified Data.PropNet.Partial.EnumSet as EnumSet
 
 -- | A unique identifier for a parameter in our system (ie. some `Cell` in the
 -- propagator network).
@@ -89,9 +91,13 @@ fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
 consequentOf :: Premise -> TMS a -> Maybe a
 consequentOf prem (TMS blfs _) = HashMap.lookup prem blfs
 
--- | Get values of current beliefs which have the most information.
+-- | Get consequents of current beliefs which have the most information.
 bestGuesses :: (Partial a) => TMS a -> [a]
 bestGuesses (TMS blfs _) = maxima (HashMap.elems blfs)
+
+-- | Get unique values across all best guesses
+bestPossibilities :: (Eq a, Bounded a, Enum a) => TMS (EnumSet a) -> [a]
+bestPossibilities = nub . concatMap EnumSet.toList . bestGuesses
 
 -- | Add a belief to the TMS, overwriting any previous belief with the same
 -- premise.
@@ -128,7 +134,7 @@ reanalyze :: TMS a -> TMS a
 reanalyze (TMS blfs rej) =
   let rej' = HashSet.fromList $ nubBy HashSet.isSubsetOf $ sortOn HashSet.size (HashSet.toList rej)
       blfs' = HashMap.filterWithKey (\prem _ -> isPlausible prem (TMS blfs rej')) blfs
-   in TMS blfs' rej
+   in TMS blfs' rej'
 
 -- | Takes in a new belief and logically combines it with the other beliefs in
 -- the TMS.
