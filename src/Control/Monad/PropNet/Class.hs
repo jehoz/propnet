@@ -5,6 +5,7 @@ module Control.Monad.PropNet.Class where
 import Data.Kind (Type)
 import Data.PropNet.Partial (Partial (bottom))
 import Data.PropNet.Relation (BinaryR, TernaryR)
+import Data.PropNet.TMS (Name)
 
 -- | An interface for building propagator networks in a way that is agnostic to
 -- the backend implementation (pure, IO, concurrent, etc)
@@ -14,6 +15,10 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
   -- Most likely implemented as a mutable reference in some monadic context
   -- (`IORef`, `STRef`, `MVar`, etc)
   data Cell m :: Type -> Type
+
+  -- | The name of a cell.  This should be unique and consistent for each cell
+  -- in the network.
+  cellName :: Cell m a -> Name
 
   -- | Create a new cell that is filled with a given value
   filled :: (Partial a) => a -> m (Cell m a)

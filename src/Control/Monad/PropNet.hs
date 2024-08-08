@@ -42,6 +42,8 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
       body :: MutVar (PrimState m) (a, a -> PropNetT m ())
     }
 
+  cellName (Cell name _) = name
+
   filled v = do
     name <- nextCellName
     body <- newMutVar (v, \_ -> pure ())
