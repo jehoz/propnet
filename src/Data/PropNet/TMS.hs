@@ -85,6 +85,10 @@ empty = TMS HashMap.empty HashSet.empty
 fromGiven :: a -> TMS a
 fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
 
+-- | Get the believed value for a given premise (if it exists)
+consequentOf :: Premise -> TMS a -> Maybe a
+consequentOf prem (TMS blfs _) = HashMap.lookup prem blfs
+
 -- | Get values of current beliefs which have the most information.
 bestGuesses :: (Partial a) => TMS a -> [a]
 bestGuesses (TMS blfs _) = maxima (HashMap.elems blfs)
@@ -105,9 +109,15 @@ believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 reject :: Premise -> TMS a -> TMS a
 reject prem (TMS blfs rej) = TMS blfs (HashSet.insert prem rej)
 
--- | Is the premise valid? (does it not contain any rejected premise?)
+-- | Is the premise valid?
+--
+-- This checks two things:
+-- 1. Is the premise non-contradictory (at most one assumption for each name)
+-- 2. Ensure that the premise doesn't imply any of the ones we've rejected
 isPlausible :: Premise -> TMS a -> Bool
-isPlausible prem tms = not $ any (`HashSet.isSubsetOf` prem) tms.rejected
+isPlausible prem tms =
+  let names = HashSet.fromList $ (\(Assumption name _) -> name) <$> HashSet.toList prem
+   in (length names == length prem) && not (any (`HashSet.isSubsetOf` prem) tms.rejected)
 
 -- | Prune redundant premises from rejected set and remove any beliefs that
 -- depent on any rejected premise.
