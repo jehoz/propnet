@@ -1,8 +1,10 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Data.PropNet.TMS where
 
+import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
@@ -34,6 +36,9 @@ instance Hashable Assumption where
 -- conjunction of some number of `Assumption`s which we store in a set.
 -- The empty set, in this case, represents a given.
 type Premise = HashSet Assumption
+
+implies :: Premise -> Premise -> Bool
+implies = flip HashSet.isSubsetOf
 
 -- | A Truth Maintainance System simultaneously holds multiple (potentially
 -- conflicting) conditional beliefs about a particular value.
@@ -152,7 +157,18 @@ assimilateInner (prem, newVal) tms =
   where
     results = case HashMap.lookup prem tms.beliefs of
       Just oldVal -> [(prem, update oldVal newVal)]
-      Nothing -> (\(oldPrem, oldVal) -> (HashSet.union oldPrem prem, update oldVal newVal)) <$> HashMap.toList tms.beliefs
+      Nothing ->
+        HashMap.toList tms.beliefs
+          <&> ( \(oldPrem, oldVal) ->
+                  let combo = (HashSet.union oldPrem prem, update oldVal newVal)
+                   in if oldVal == newVal
+                        then
+                          if
+                            | oldPrem `implies` prem -> (prem, Changed newVal)
+                            | prem `implies` oldPrem -> (oldPrem, Unchanged newVal)
+                            | otherwise -> combo
+                        else combo
+              )
 
     handleResult (p, res) = case res of
       Changed x -> believe (p, x)
