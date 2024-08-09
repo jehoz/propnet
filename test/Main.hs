@@ -10,8 +10,7 @@ import Data.List (tails, transpose)
 import Data.PropNet.Partial
 import Data.PropNet.Partial.EnumSet hiding (empty)
 import Data.PropNet.Relation (distinct, liftTms2)
-import Data.PropNet.TMS (TMS (..), bestGuesses, fromGiven)
-import Data.Traversable (for)
+import Data.PropNet.TMS (TMS (..), fromGiven)
 
 type SudokuCell = Cell (PropNetT IO) (TMS (EnumSet Val))
 
@@ -57,20 +56,14 @@ pushPuzzleInput cells =
         cells
         inputs
 
-solve :: PropNetIO [Maybe Val]
+solve :: PropNetIO [Val]
 solve = do
   cells <- createSudokuNetwork
   pushPuzzleInput cells
-  for cells $ \c -> do
-    es <- peek c
-    pure (firstJust $ only <$> bestGuesses es)
-  where
-    firstJust [] = Nothing
-    firstJust (Just x : _) = Just x
-    firstJust (_ : xs) = firstJust xs
+  search cells
 
 main :: IO ()
 main = do
   res <- evalPropNetT solve
-  let rows = unwords <$> chunksOf 9 (maybe "x" show <$> res)
+  let rows = unwords <$> chunksOf 9 (show <$> res)
   traverse_ putStrLn rows
