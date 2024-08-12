@@ -1,16 +1,15 @@
-{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Data.PropNet.TMS where
 
-import Data.Functor ((<&>))
+import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
-import Data.List (nub, nubBy, sortOn)
+import Data.List (maximumBy, nub, nubBy, sortOn)
 import Data.PropNet.Partial
 import Data.PropNet.Partial.EnumSet (EnumSet)
 import qualified Data.PropNet.Partial.EnumSet as EnumSet
