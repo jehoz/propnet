@@ -131,23 +131,18 @@ believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 -- premise.  If you use this function directly, you probably want to `reanalyze`
 -- the TMS afterwards.
 reject :: Premise -> TMS a -> TMS a
-reject prem (TMS blfs rej) =
+reject prem tms =
   let induced =
         [ removeAssumption a prem
           | a <- HashMap.keys prem,
-            any (`implies` negateAssumption a prem) rej
+            not (valid (negateAssumption a prem) tms)
         ]
-   in TMS blfs (foldr HashSet.insert rej (prem : induced))
+   in TMS tms.beliefs (foldr HashSet.insert tms.rejected (prem : induced))
 
--- | Is the premise valid?
---
--- This checks two things:
--- 1. Is the premise non-contradictory (at most one assumption for each name)
--- 2. Ensure that the premise doesn't imply any of the ones we've rejected
-isPlausible :: Premise -> TMS a -> Bool
-isPlausible prem tms =
-  let names = HashSet.fromList $ (\(Assumption name _) -> name) <$> HashSet.toList prem
-   in (length names == length prem) && not (any (`HashSet.isSubsetOf` prem) tms.rejected)
+-- | Is the premise valid within our TMS?
+-- (Check that is is not subsumed by any of the premises we've rejected).
+valid :: Premise -> TMS a -> Bool
+valid prem tms = not (any (prem `implies`) tms.rejected)
 
 -- | Prune redundant premises from rejected set and remove any beliefs that
 -- depent on any rejected premise.
@@ -156,9 +151,9 @@ isPlausible prem tms =
 -- shouldn't need to use this function directly.
 reanalyze :: TMS a -> TMS a
 reanalyze (TMS blfs rej) =
-  let rej' = HashSet.fromList $ nubBy HashSet.isSubsetOf $ sortOn HashSet.size (HashSet.toList rej)
-      blfs' = HashMap.filterWithKey (\prem _ -> isPlausible prem (TMS blfs rej')) blfs
-   in TMS blfs' rej'
+  let rej' = HashSet.fromList $ nubBy HashMap.isSubmapOf $ sortOn HashMap.size (HashSet.toList rej)
+      blfs' = HashMap.filterWithKey (\prem _ -> valid prem (TMS blfs rej')) blfs
+   in TMS blfs' rej
 
 -- | Takes in a new belief and logically combines it with the other beliefs in
 -- the TMS.
@@ -170,7 +165,7 @@ assimilate blf = reanalyze . assimilateInner blf
 -- | Assimilate without reanalyzing
 assimilateInner :: (Partial a) => (Premise, a) -> TMS a -> TMS a
 assimilateInner (prem, newVal) tms =
-  if isPlausible prem tms
+  if valid prem tms
     then change tms
     else tms
   where
