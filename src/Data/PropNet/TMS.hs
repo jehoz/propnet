@@ -9,7 +9,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
-import Data.List (maximumBy, nub, nubBy, sortOn)
+import Data.List (maximumBy, nub)
 import Data.PropNet.Partial
 import Data.PropNet.Partial.EnumSet (EnumSet)
 import qualified Data.PropNet.Partial.EnumSet as EnumSet
@@ -134,7 +134,7 @@ believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 -- (if @(A && B)@ and @(A && not B)@ both rejected, then we can reject @A@).
 --
 -- __NOTE__: This does not discard current beliefs that depend on the rejected
--- premise.  If you use this function directly, you probably want to `reanalyze`
+-- premise.  If you use this function directly, you probably want to `prune`
 -- the TMS afterwards.
 reject :: Premise -> TMS a -> TMS a
 reject prem tms =
@@ -150,23 +150,21 @@ reject prem tms =
 valid :: Premise -> TMS a -> Bool
 valid prem tms = not (any (prem `subsumes`) tms.rejected)
 
--- | Prune redundant premises from rejected set and remove any beliefs that
--- depent on any rejected premise.
+-- | Prune any beliefs that are subsumed by a rejected premise.
 --
 -- This is done for you when you `assimilate` or `combine`, so you probably
--- shouldn't need to use this function directly.
-reanalyze :: TMS a -> TMS a
-reanalyze (TMS blfs rej) =
-  let rej' = HashSet.fromList $ nubBy HashMap.isSubmapOf $ sortOn HashMap.size (HashSet.toList rej)
-      blfs' = HashMap.filterWithKey (\prem _ -> valid prem (TMS blfs rej')) blfs
-   in TMS blfs' rej
+-- won't need to use this function directly.
+prune :: TMS a -> TMS a
+prune tms =
+  let blfs' = HashMap.filterWithKey (\p _ -> valid p tms) tms.beliefs
+   in TMS blfs' tms.rejected
 
 -- | Takes in a new belief and logically combines it with the other beliefs in
 -- the TMS.
 -- If any contradictions are found, those premises are stored in the rejected
 -- set.
 assimilate :: (Partial a) => (Premise, a) -> TMS a -> TMS a
-assimilate blf = reanalyze . assimilateInner blf
+assimilate blf = prune . assimilateInner blf
 
 -- | Assimilate without reanalyzing
 assimilateInner :: (Partial a) => (Premise, a) -> TMS a -> TMS a
@@ -192,4 +190,4 @@ assimilateInner (prem, newVal) tms =
 combine :: (Partial a) => TMS a -> TMS a -> TMS a
 combine t1 t2 =
   let rejected = HashSet.union t1.rejected t2.rejected
-   in reanalyze $ foldr assimilateInner (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
+   in prune $ foldr assimilateInner (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
