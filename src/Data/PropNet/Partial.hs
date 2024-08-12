@@ -84,8 +84,8 @@ instance (Bounded a, Enum a) => Partial (EnumSet a) where
   leq = flip isSubsetOf
 
   update s1 s2
-    | s1 == s2 = Unchanged s1
     | null s3 = Contradiction
+    | s1 == s3 = Unchanged s1
     | otherwise = Changed s3
     where
       s3 = intersection s1 s2
