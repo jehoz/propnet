@@ -121,13 +121,23 @@ bestPossibilities = nub . concatMap EnumSet.toList . bestGuesses
 believe :: (Premise, a) -> TMS a -> TMS a
 believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 
--- | Add a premise to the rejection set.
+-- | Reject a premise, asserting that we will always encounter a contradiction
+-- if we take it to be true.
+--
+-- Does some additional processing to generalize invalid premises as well
+-- (if @(A && B)@ and @(A && not B)@ both rejected, then we can reject @A@).
 --
 -- __NOTE__: This does not discard current beliefs that depend on the rejected
 -- premise.  If you use this function directly, you probably want to `reanalyze`
 -- the TMS afterwards.
 reject :: Premise -> TMS a -> TMS a
-reject prem (TMS blfs rej) = TMS blfs (HashSet.insert prem rej)
+reject prem (TMS blfs rej) =
+  let induced =
+        [ removeAssumption a prem
+          | a <- HashMap.keys prem,
+            any (`implies` negateAssumption a prem) rej
+        ]
+   in TMS blfs (foldr HashSet.insert rej (prem : induced))
 
 -- | Is the premise valid?
 --
