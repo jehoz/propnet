@@ -103,6 +103,11 @@ empty = TMS HashMap.empty HashSet.empty
 fromGiven :: a -> TMS a
 fromGiven x = TMS (HashMap.singleton HashMap.empty x) HashSet.empty
 
+-- | Get the belief representing the deepest non-rejected branch we've visited
+-- in the search tree.  (i.e. the premise which contains the most assumptions)
+deepestBranch :: TMS a -> (Premise, a)
+deepestBranch tms = maximumBy (compare `on` (HashMap.size . fst)) (HashMap.toList tms.beliefs)
+
 -- | Get the believed value for a given premise (if it exists)
 consequentOf :: Premise -> TMS a -> Maybe a
 consequentOf prem (TMS blfs _) = HashMap.lookup prem blfs
