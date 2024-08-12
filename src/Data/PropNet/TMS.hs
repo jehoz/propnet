@@ -89,7 +89,7 @@ instance (Eq a, Partial a) => Partial (TMS a) where
 
   update t1 t2
     -- rejecting the given premise (empty set) means there is no solution
-    | HashSet.member HashSet.empty t3.rejected = Contradiction
+    | HashSet.member HashMap.empty t3.rejected = Contradiction
     | t1 == t3 = Unchanged t1
     | otherwise = Changed t3
     where
