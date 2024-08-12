@@ -33,12 +33,14 @@ instance Hashable Assumption where
   hashWithSalt s (Assumption n v) = hashWithSalt s (n, v)
 
 -- | The antecedent of some belief.  For our purposes this will always be a
--- conjunction of some number of `Assumption`s which we store in a set.
--- The empty set, in this case, represents a given.
+-- conjunctive clause joining some number of `Assumption`s or their negation.
+-- An empty map, in this case, represents a given.
 type Premise = HashMap Assumption Bool
 
-implies :: Premise -> Premise -> Bool
-implies = flip HashMap.isSubmapOf
+-- | Does the first premise subsume the second?
+-- (Are all of the assumptions in the second contained within the first?)
+subsumes :: Premise -> Premise -> Bool
+subsumes = flip HashMap.isSubmapOf
 
 addAssumption :: Assumption -> Bool -> Premise -> Premise
 addAssumption = HashMap.insert
@@ -142,7 +144,7 @@ reject prem tms =
 -- | Is the premise valid within our TMS?
 -- (Check that is is not subsumed by any of the premises we've rejected).
 valid :: Premise -> TMS a -> Bool
-valid prem tms = not (any (prem `implies`) tms.rejected)
+valid prem tms = not (any (prem `subsumes`) tms.rejected)
 
 -- | Prune redundant premises from rejected set and remove any beliefs that
 -- depent on any rejected premise.
@@ -175,7 +177,7 @@ assimilateInner (prem, newVal) tms =
         Changed x -> believe (prem, x)
         Contradiction -> reject prem
       Nothing ->
-        let closest = head $ maxima (snd <$> filter (\(q, _) -> prem `implies` q) (HashMap.toList tms.beliefs))
+        let closest = head $ maxima (snd <$> filter (\(q, _) -> prem `subsumes` q) (HashMap.toList tms.beliefs))
          in case update closest newVal of
               Unchanged x -> believe (prem, x)
               Changed x -> believe (prem, x)
