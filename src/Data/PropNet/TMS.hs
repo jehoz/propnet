@@ -35,10 +35,19 @@ instance Hashable Assumption where
 -- | The antecedent of some belief.  For our purposes this will always be a
 -- conjunction of some number of `Assumption`s which we store in a set.
 -- The empty set, in this case, represents a given.
-type Premise = HashSet Assumption
+type Premise = HashMap Assumption Bool
 
 implies :: Premise -> Premise -> Bool
-implies = flip HashSet.isSubsetOf
+implies = flip HashMap.isSubmapOf
+
+addAssumption :: Assumption -> Bool -> Premise -> Premise
+addAssumption = HashMap.insert
+
+negateAssumption :: Assumption -> Premise -> Premise
+negateAssumption = HashMap.update (Just . not)
+
+removeAssumption :: Assumption -> Premise -> Premise
+removeAssumption = HashMap.delete
 
 -- | A Truth Maintainance System simultaneously holds multiple (potentially
 -- conflicting) conditional beliefs about a particular value.
@@ -90,7 +99,7 @@ empty = TMS HashMap.empty HashSet.empty
 
 -- | Create a TMS which takes the specified value as a given.
 fromGiven :: a -> TMS a
-fromGiven x = TMS (HashMap.singleton HashSet.empty x) HashSet.empty
+fromGiven x = TMS (HashMap.singleton HashMap.empty x) HashSet.empty
 
 -- | Get the believed value for a given premise (if it exists)
 consequentOf :: Premise -> TMS a -> Maybe a
@@ -152,28 +161,20 @@ assimilate blf = reanalyze . assimilateInner blf
 assimilateInner :: (Partial a) => (Premise, a) -> TMS a -> TMS a
 assimilateInner (prem, newVal) tms =
   if isPlausible prem tms
-    then foldr handleResult tms results
+    then change tms
     else tms
   where
-    results = case HashMap.lookup prem tms.beliefs of
-      Just oldVal -> [(prem, update oldVal newVal)]
+    change = case HashMap.lookup prem tms.beliefs of
+      Just oldVal -> case update oldVal newVal of
+        Unchanged _ -> id
+        Changed x -> believe (prem, x)
+        Contradiction -> reject prem
       Nothing ->
-        HashMap.toList tms.beliefs
-          <&> ( \(oldPrem, oldVal) ->
-                  let combo = (HashSet.union oldPrem prem, update oldVal newVal)
-                   in if oldVal == newVal
-                        then
-                          if
-                            | oldPrem `implies` prem -> (prem, Changed newVal)
-                            | prem `implies` oldPrem -> (oldPrem, Unchanged newVal)
-                            | otherwise -> combo
-                        else combo
-              )
-
-    handleResult (p, res) = case res of
-      Changed x -> believe (p, x)
-      Unchanged _ -> id
-      Contradiction -> reject p
+        let closest = head $ maxima (snd <$> filter (\(q, _) -> prem `implies` q) (HashMap.toList tms.beliefs))
+         in case update closest newVal of
+              Unchanged x -> believe (prem, x)
+              Changed x -> believe (prem, x)
+              Contradiction -> reject prem
 
 -- | Like `assimilate` but combines all of the beliefs in one TMS with all of
 -- the beliefs in another, and takes the union of their two rejected sets.
