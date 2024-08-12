@@ -23,7 +23,7 @@ library
       , Data.PropNet.Relation
       , Data.PropNet.TMS
     build-depends:    
-      , base ^>=4.18.2.1
+      , base ^>=4.17.2
       , containers
       , hashable
       , unordered-containers
@@ -41,5 +41,5 @@ test-suite propnet-test
     hs-source-dirs:   test
     main-is:          Main.hs
     build-depends:
-        base ^>=4.18.2.1,
-        propnet
+      , base ^>=4.17.2
+      , propnet
