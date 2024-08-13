@@ -1,8 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Data.PropNet.TMS where
 
+import Control.Monad (guard)
 import Data.Function (on)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -138,12 +140,18 @@ believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
 -- the TMS afterwards.
 reject :: Premise -> TMS a -> TMS a
 reject prem tms =
-  let induced =
-        [ removeAssumption a prem
-          | a <- HashMap.keys prem,
-            not (valid (negateAssumption a prem) tms)
-        ]
-   in TMS tms.beliefs (foldr HashSet.insert tms.rejected (prem : induced))
+  let induced = do
+        a <- HashMap.keys prem
+        let inverse = negateAssumption a prem
+        guard (not (valid inverse tms))
+        let parent = removeAssumption a prem
+        pure (reject parent . deleteRej inverse)
+
+      insertRej p t = TMS t.beliefs (HashSet.insert p t.rejected)
+      deleteRej p t = TMS t.beliefs (HashSet.delete p t.rejected)
+   in case induced of
+        [] -> insertRej prem tms
+        fs -> foldr ($) tms fs
 
 -- | Is the premise valid within our TMS?
 -- (Check that is is not subsumed by any of the premises we've rejected).
@@ -164,14 +172,9 @@ prune tms =
 -- If any contradictions are found, those premises are stored in the rejected
 -- set.
 assimilate :: (Partial a) => (Premise, a) -> TMS a -> TMS a
-assimilate blf = prune . assimilateInner blf
-
--- | Assimilate without reanalyzing
-assimilateInner :: (Partial a) => (Premise, a) -> TMS a -> TMS a
-assimilateInner (prem, newVal) tms =
-  if valid prem tms
-    then change tms
-    else tms
+assimilate (prem, newVal) tms
+  | valid prem tms = prune (change tms)
+  | otherwise = tms
   where
     change = case HashMap.lookup prem tms.beliefs of
       Just oldVal -> case update oldVal newVal of
@@ -179,7 +182,7 @@ assimilateInner (prem, newVal) tms =
         Changed x -> believe (prem, x)
         Contradiction -> reject prem
       Nothing ->
-        let closest = head $ maxima (snd <$> filter (\(q, _) -> prem `subsumes` q) (HashMap.toList tms.beliefs))
+        let closest = head $ maxima $ [v | (p, v) <- HashMap.toList tms.beliefs, prem `subsumes` p]
          in case update closest newVal of
               Unchanged x -> believe (prem, x)
               Changed x -> believe (prem, x)
@@ -190,4 +193,4 @@ assimilateInner (prem, newVal) tms =
 combine :: (Partial a) => TMS a -> TMS a -> TMS a
 combine t1 t2 =
   let rejected = HashSet.union t1.rejected t2.rejected
-   in prune $ foldr assimilateInner (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
+   in foldr assimilate (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
