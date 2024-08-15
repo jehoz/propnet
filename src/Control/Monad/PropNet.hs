@@ -10,16 +10,15 @@ import Control.Monad ((>=>))
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (MonadState (get, put), StateT, evalStateT, runStateT)
+import Control.Monad.State (MonadState (get, put), StateT, evalStateT, gets, modify, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.Foldable (toList)
 import Data.Function (on)
 import qualified Data.HashMap.Strict as HashMap
-import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
 import Data.List (minimumBy)
-import Data.Maybe (catMaybes, mapMaybe)
+import Data.Maybe (catMaybes)
 import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
@@ -29,10 +28,10 @@ import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
 
 data PropNetState = PropNetState
-  { -- | An incrementing counter for assigning each new cell a unique 'Name'
+  { -- | Incrementing counter for assigning each new cell a unique 'Name'
     nameCounter :: TMS.Name,
-    -- | Set of unique premises which have resulted in contradictions
-    badPremises :: HashSet TMS.Premise
+    -- | Flag indicating that an unrecoverable contradiction was found
+    contradiction :: Bool
   }
 
 newtype PropNetT (m :: Type -> Type) (a :: Type) = PropNetT
@@ -67,25 +66,25 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
     case update val new of
       Unchanged _ -> pure ()
       Changed x -> writeMutVar cell.body (x, ns) >> ns x
-      Contradiction -> error "Contradiction!"
+      Contradiction -> modify (\(PropNetState ctr _) -> PropNetState ctr True)
 
   watch cell sub = do
     (val, subs) <- readMutVar cell.body
     writeMutVar cell.body (val, \x -> subs x >> sub x)
 
 runPropNetT :: (Monad m) => PropNetT m a -> m (a, PropNetState)
-runPropNetT p = runStateT p.unPropNetT (PropNetState 0 HashSet.empty)
+runPropNetT p = runStateT p.unPropNetT (PropNetState 0 False)
 
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
-evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 HashSet.empty)
+evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 False)
 
 -- | Emits a new (unique) cell ID.  This should be called once for each new
 -- cell that gets created so that each has a unique ID.
 nextCellName :: (Monad m) => PropNetT m TMS.Name
 nextCellName = do
-  PropNetState nameCtr bad <- get
+  PropNetState nameCtr contr <- get
   let x = nameCtr
-  put (PropNetState (nameCtr + 1) bad)
+  put (PropNetState (nameCtr + 1) contr)
   pure x
 
 branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => Cell m (TMS (OneOf a)) -> m ()
@@ -115,21 +114,25 @@ leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
   where
     entropy set = let e = OneOf.size set in if e == 1 then Nothing else Just e
 
-search :: (Traversable t, MonadPropNet m, Eq a, Bounded a, Enum a, Show a) => t (Cell m (TMS (OneOf a))) -> m (t a)
+search ::
+  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a, Show a) =>
+  t (Cell (PropNetT m) (TMS (OneOf a))) ->
+  (PropNetT m) (Maybe (t a))
 search cells = do
   vals <- traverse peek cells
-  let prems = HashSet.toList $ foldr1 HashSet.union $ (\t -> HashMap.keysSet t.beliefs) <$> vals
 
   let (deepest, _) = deepestBranch (head $ toList vals)
+  let solution = traverse (consequentOf deepest >=> only) vals
 
-  let solutions = mapMaybe (traverse only) $ mapMaybe (\p -> traverse (consequentOf p) vals) prems
-  case solutions of
-    (x : _) -> pure x
-    [] -> do
+  case solution of
+    Nothing -> do
       branchPt <- leastEntropyFor deepest cells
       case branchPt of
         Nothing -> error "It's not solved and I can't find anywhere to branch!"
-        Just c -> branch c >> search cells
+        Just c -> branch c
+      failed <- gets (\s -> s.contradiction)
+      if failed then pure Nothing else search cells
+    r -> pure r
 
 type PropNetIO a = PropNetT IO a
 

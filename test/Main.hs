@@ -8,11 +8,11 @@ import Control.Monad.PropNet.Class
 import Data.Foldable (for_, traverse_)
 import Data.List (tails, transpose)
 import Data.PropNet.Partial
-import Data.PropNet.Partial.EnumSet hiding (empty)
+import Data.PropNet.Partial.OneOf hiding (empty)
 import Data.PropNet.Relation (distinct, liftTms2)
 import Data.PropNet.TMS (TMS (..), fromGiven)
 
-type SudokuCell = Cell (PropNetT IO) (TMS (EnumSet Val))
+type SudokuCell = Cell (PropNetT IO) (TMS (OneOf Val))
 
 data Val = V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 deriving (Eq, Bounded, Enum)
 
@@ -42,21 +42,21 @@ pushPuzzleInput :: [SudokuCell] -> PropNetIO ()
 pushPuzzleInput cells =
   let inputs =
         read . pure
-          <$> "800000000\
-              \003600000\
-              \070090200\
-              \050007000\
-              \000045700\
-              \000100030\
-              \001000068\
-              \008500010\
-              \090000400"
+          <$> "072500000\
+              \030004000\
+              \000002010\
+              \000000000\
+              \004730000\
+              \157000000\
+              \908000500\
+              \000000420\
+              \000900370"
    in zipWithM_
         (\c i -> when (i /= 0) (push c $ fromGiven (singleton $ toEnum $ i - 1)))
         cells
         inputs
 
-solve :: PropNetIO [Val]
+solve :: PropNetIO (Maybe [Val])
 solve = do
   cells <- createSudokuNetwork
   pushPuzzleInput cells
@@ -65,5 +65,8 @@ solve = do
 main :: IO ()
 main = do
   res <- evalPropNetT solve
-  let rows = unwords <$> chunksOf 9 (show <$> res)
-  traverse_ putStrLn rows
+  case res of
+    Nothing -> putStrLn "No solution!"
+    Just xs ->
+      let rows = unwords <$> chunksOf 9 (show <$> xs)
+       in traverse_ putStrLn rows
