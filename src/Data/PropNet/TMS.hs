@@ -158,39 +158,35 @@ reject prem tms =
 valid :: Premise -> TMS a -> Bool
 valid prem tms = not (any (prem `subsumes`) tms.rejected)
 
--- | Prune any beliefs that are subsumed by a rejected premise.
---
--- This is done for you when you `assimilate` or `combine`, so you probably
--- won't need to use this function directly.
+-- | Remove any beliefs that are subsumed by a rejected premise.
 prune :: TMS a -> TMS a
 prune tms =
   let blfs' = HashMap.filterWithKey (\p _ -> valid p tms) tms.beliefs
    in TMS blfs' tms.rejected
 
--- | Takes in a new belief and logically combines it with the other beliefs in
--- the TMS.
--- If any contradictions are found, those premises are stored in the rejected
--- set.
+-- | Takes in a belief and incorporates it into the other beliefs in the TMS,
+-- resolving any contradictions that are found in the process.
 assimilate :: (Partial a) => (Premise, a) -> TMS a -> TMS a
 assimilate (prem, newVal) tms
-  | valid prem tms = prune (change tms)
+  | valid prem tms = change tms
   | otherwise = tms
   where
     change = case HashMap.lookup prem tms.beliefs of
       Just oldVal -> case update oldVal newVal of
         Unchanged _ -> id
         Changed x -> believe (prem, x)
-        Contradiction -> reject prem
+        Contradiction -> prune . reject prem
       Nothing ->
         let closest = head $ maxima $ [v | (p, v) <- HashMap.toList tms.beliefs, prem `subsumes` p]
          in case update closest newVal of
               Unchanged x -> believe (prem, x)
               Changed x -> believe (prem, x)
-              Contradiction -> reject prem
+              Contradiction -> prune . reject prem
 
 -- | Like `assimilate` but combines all of the beliefs in one TMS with all of
 -- the beliefs in another, and takes the union of their two rejected sets.
 combine :: (Partial a) => TMS a -> TMS a -> TMS a
 combine t1 t2 =
   let rejected = HashSet.union t1.rejected t2.rejected
-   in foldr assimilate (TMS t1.beliefs rejected) (HashMap.toList t2.beliefs)
+      t1' = if rejected /= t1.rejected then prune (TMS t1.beliefs rejected) else t1
+   in foldr assimilate t1' (HashMap.toList t2.beliefs)
