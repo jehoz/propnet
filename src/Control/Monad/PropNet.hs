@@ -1,30 +1,32 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Control.Monad.PropNet where
 
-import Control.Monad (foldM)
+import Control.Monad ((>=>))
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
 import Control.Monad.State (MonadState (get, put), StateT, evalStateT, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
-import Data.Foldable (toList, traverse_)
+import Data.Foldable (toList)
+import Data.Function (on)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
-import Data.List (nub)
-import Data.Maybe (mapMaybe)
+import Data.List (minimumBy)
+import Data.Maybe (catMaybes, mapMaybe)
 import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
-import Data.PropNet.Partial (UpdateResult (..), update)
+import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.EnumSet (EnumSet, only)
 import qualified Data.PropNet.Partial.EnumSet as EnumSet
-import Data.PropNet.TMS (Assumption (..), TMS, believe, bestGuesses, bestPossibilities, consequentOf)
+import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch)
 import qualified Data.PropNet.TMS as TMS
-import Debug.Trace (trace)
+import Data.Traversable (for)
 
 data PropNetState = PropNetState
   { -- | An incrementing counter for assigning each new cell a unique 'Name'
@@ -89,51 +91,46 @@ nextCellName = do
 branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => Cell m (TMS (EnumSet a)) -> m ()
 branch c = do
   tms <- peek c
-  let toBelief v = (HashSet.singleton $ Assumption (cellName c) (fromEnum v), EnumSet.singleton v)
-  trace "Pushing" $ pure ()
-  -- push c $ traceShowId (foldr (believe . toBelief) TMS.empty (bestPossibilities tms))
-  push c $ believe (toBelief $ head $ bestPossibilities tms) TMS.empty
+  let (prem, possibilities) = EnumSet.toList <$> deepestBranch tms
+  let val = head possibilities
 
-findLeastEntropy :: (Foldable t, Eq a, Bounded a, Enum a, MonadPropNet m) => t (Cell m (TMS (EnumSet a))) -> m (Maybe (Cell m (TMS (EnumSet a))))
-findLeastEntropy cs = do
-  fmap fst <$> foldM iter Nothing cs
+  -- make positive and negative beliefs for a branch option
+  let beliefs =
+        let assumption = Assumption (cellName c) (fromEnum val)
+         in [ (HashMap.insert assumption True prem, EnumSet.singleton val),
+              (HashMap.insert assumption False prem, EnumSet.complement (EnumSet.singleton val))
+            ]
+
+  push c $ TMS (HashMap.fromList beliefs) HashSet.empty
+
+selectCell :: (MonadPropNet m, Traversable t, Ord b) => t (Cell m a) -> (a -> Maybe b) -> m (Maybe (Cell m a))
+selectCell cells f = do
+  pairs <- catMaybes . toList <$> for cells (\c -> peek c >>= \v -> pure $ (c,) <$> f v)
+  pure $ case pairs of
+    [] -> Nothing
+    ps -> Just . fst $ minimumBy (compare `on` snd) ps
+
+leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (Cell m (TMS (EnumSet a))) -> m (Maybe (Cell m (TMS (EnumSet a))))
+leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
   where
-    iter best c = do
-      guesses <- fmap EnumSet.toList . bestGuesses <$> peek c
-      let leastEntropy = minimum (length <$> guesses)
-      let totalEntropy = length (nub (concat guesses))
-      if leastEntropy == 1
-        then pure best
-        else pure $ case best of
-          Nothing -> Just (c, totalEntropy)
-          Just (_, bestEntropy) -> if totalEntropy < bestEntropy then Just (c, totalEntropy) else best
+    entropy set = let e = EnumSet.size set in if e == 1 then Nothing else Just e
 
 search :: (Traversable t, MonadPropNet m, Eq a, Bounded a, Enum a, Show a) => t (Cell m (TMS (EnumSet a))) -> m (t a)
 search cells = do
   vals <- traverse peek cells
-  let prems = HashSet.toList $ foldr1 HashSet.intersection $ (\t -> HashMap.keysSet t.beliefs) <$> vals
-  traverse_ (\s -> trace (showSudoku $ toList s) (pure ())) (mapMaybe (\p -> traverse (consequentOf p) vals) prems)
+  let prems = HashSet.toList $ foldr1 HashSet.union $ (\t -> HashMap.keysSet t.beliefs) <$> vals
+
+  let (deepest, _) = deepestBranch (head $ toList vals)
+
   let solutions = mapMaybe (traverse only) $ mapMaybe (\p -> traverse (consequentOf p) vals) prems
   case solutions of
     (x : _) -> pure x
     [] -> do
-      branchPt <- findLeastEntropy cells
+      branchPt <- leastEntropyFor deepest cells
       case branchPt of
         Nothing -> error "It's not solved and I can't find anywhere to branch!"
-        Just c -> trace ("Branching on Cell " ++ show (cellName c)) branch c >> search cells
+        Just c -> branch c >> search cells
 
 type PropNetIO a = PropNetT IO a
 
 type PropNetST s a = PropNetT (ST s) a
-
--------------------------------------------------------------------------------
--- These are just for debugging, delete them later
-
-chunksOf' :: Int -> [a] -> [[a]]
-chunksOf' _ [] = []
-chunksOf' n l = take n l : chunksOf' n (drop n l)
-
-showSudoku :: (Show a) => [EnumSet a] -> String
-showSudoku xs =
-  let rows = chunksOf' 9 $ maybe "_" show . only <$> xs
-   in unlines $ unwords <$> rows
