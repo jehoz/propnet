@@ -13,8 +13,8 @@ import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
 import Data.List (maximumBy, nub)
 import Data.PropNet.Partial
-import Data.PropNet.Partial.EnumSet (EnumSet)
-import qualified Data.PropNet.Partial.EnumSet as EnumSet
+import Data.PropNet.Partial.OneOf (OneOf)
+import qualified Data.PropNet.Partial.OneOf as OneOf
 
 -- | A unique identifier for a parameter in our system (ie. some `Cell` in the
 -- propagator network).
@@ -56,7 +56,7 @@ removeAssumption = HashMap.delete
 -- conflicting) conditional beliefs about a particular value.
 --
 -- Each belief is dependent on some `Premise`, and dictates what we know about
--- our value if that premise is true.  For example, if we use an `EnumSet` to
+-- our value if that premise is true.  For example, if we use an `OneOf` to
 -- represent a set of finite possibilities for our value, then our beliefs would
 -- look like this:
 --
@@ -118,8 +118,8 @@ bestGuesses :: (Partial a) => TMS a -> [a]
 bestGuesses (TMS blfs _) = maxima (HashMap.elems blfs)
 
 -- | Get unique values across all best guesses
-bestPossibilities :: (Eq a, Bounded a, Enum a) => TMS (EnumSet a) -> [a]
-bestPossibilities = nub . concatMap EnumSet.toList . bestGuesses
+bestPossibilities :: (Eq a, Bounded a, Enum a) => TMS (OneOf a) -> [a]
+bestPossibilities = nub . concatMap OneOf.toList . bestGuesses
 
 -- | Add a belief to the TMS, overwriting any previous belief with the same
 -- premise.

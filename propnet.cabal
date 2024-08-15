@@ -19,7 +19,7 @@ library
       , Control.Monad.PropNet
       , Control.Monad.PropNet.Class
       , Data.PropNet.Partial
-      , Data.PropNet.Partial.EnumSet
+      , Data.PropNet.Partial.OneOf
       , Data.PropNet.Relation
       , Data.PropNet.TMS
     build-depends:    

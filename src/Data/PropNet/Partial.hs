@@ -4,7 +4,7 @@ module Data.PropNet.Partial where
 
 import Data.Kind (Type)
 import Data.List (nub)
-import Data.PropNet.Partial.EnumSet
+import Data.PropNet.Partial.OneOf
 import Prelude hiding (null)
 
 -- | The different outcomes after merging two partial information values.
@@ -75,10 +75,10 @@ instance (Eq a) => Partial (Maybe a) where
   update old Nothing = Unchanged old
   update Nothing x@(Just _) = Changed x
 
--- | `EnumSet`s represent partial information as a set of possible values.
+-- | `OneOf`s represent partial information as a set of possible values.
 -- Two sets of possible values combine via intersection to reduce the
 -- possibilities for a value, thus increasing the information.
-instance (Bounded a, Enum a) => Partial (EnumSet a) where
+instance (Bounded a, Enum a) => Partial (OneOf a) where
   bottom = universal
 
   leq = flip isSubsetOf

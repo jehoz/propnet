@@ -22,8 +22,8 @@ import Data.List (minimumBy)
 import Data.Maybe (catMaybes, mapMaybe)
 import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
-import Data.PropNet.Partial.EnumSet (EnumSet, only)
-import qualified Data.PropNet.Partial.EnumSet as EnumSet
+import Data.PropNet.Partial.OneOf (OneOf, only)
+import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch)
 import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
@@ -88,17 +88,17 @@ nextCellName = do
   put (PropNetState (nameCtr + 1) bad)
   pure x
 
-branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => Cell m (TMS (EnumSet a)) -> m ()
+branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => Cell m (TMS (OneOf a)) -> m ()
 branch c = do
   tms <- peek c
-  let (prem, possibilities) = EnumSet.toList <$> deepestBranch tms
+  let (prem, possibilities) = OneOf.toList <$> deepestBranch tms
   let val = head possibilities
 
   -- make positive and negative beliefs for a branch option
   let beliefs =
         let assumption = Assumption (cellName c) (fromEnum val)
-         in [ (HashMap.insert assumption True prem, EnumSet.singleton val),
-              (HashMap.insert assumption False prem, EnumSet.complement (EnumSet.singleton val))
+         in [ (HashMap.insert assumption True prem, OneOf.singleton val),
+              (HashMap.insert assumption False prem, OneOf.complement (OneOf.singleton val))
             ]
 
   push c $ TMS (HashMap.fromList beliefs) HashSet.empty
@@ -110,12 +110,12 @@ selectCell cells f = do
     [] -> Nothing
     ps -> Just . fst $ minimumBy (compare `on` snd) ps
 
-leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (Cell m (TMS (EnumSet a))) -> m (Maybe (Cell m (TMS (EnumSet a))))
+leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (Cell m (TMS (OneOf a))) -> m (Maybe (Cell m (TMS (OneOf a))))
 leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
   where
-    entropy set = let e = EnumSet.size set in if e == 1 then Nothing else Just e
+    entropy set = let e = OneOf.size set in if e == 1 then Nothing else Just e
 
-search :: (Traversable t, MonadPropNet m, Eq a, Bounded a, Enum a, Show a) => t (Cell m (TMS (EnumSet a))) -> m (t a)
+search :: (Traversable t, MonadPropNet m, Eq a, Bounded a, Enum a, Show a) => t (Cell m (TMS (OneOf a))) -> m (t a)
 search cells = do
   vals <- traverse peek cells
   let prems = HashSet.toList $ foldr1 HashSet.union $ (\t -> HashMap.keysSet t.beliefs) <$> vals

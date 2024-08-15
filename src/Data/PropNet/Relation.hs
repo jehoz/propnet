@@ -7,8 +7,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.Maybe (fromMaybe)
 import Data.PropNet.Partial (Partial, bottom)
-import Data.PropNet.Partial.EnumSet (EnumSet)
-import qualified Data.PropNet.Partial.EnumSet as EnumSet
+import Data.PropNet.Partial.OneOf (OneOf)
+import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.TMS (TMS (..), believe)
 
 type BinaryR a b = ((a, b) -> (a, b))
@@ -46,11 +46,11 @@ liftTms3 r (t1, t2, t3) = foldr iter (initTms, initTms, initTms) prems
           (x', y', z') = r (x, y, z)
        in (believe (p, x') t1', believe (p, y') t2', believe (p, z') t3')
 
--- | A relation between `EnumSet`s of the same type which declares that if the
+-- | A relation between `OneOf`s of the same type which declares that if the
 -- value of one is known, the other cannot be that known value (and vice versa).
-distinct :: (Bounded a, Enum a) => BinaryR (EnumSet a) (EnumSet a)
+distinct :: (Bounded a, Enum a) => BinaryR (OneOf a) (OneOf a)
 distinct (x, y) =
-  let f old new = if EnumSet.size new == 1 then EnumSet.difference old new else old
+  let f old new = if OneOf.size new == 1 then OneOf.difference old new else old
       x' = f x y
       y' = f y x
    in (x', y')
