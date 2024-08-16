@@ -19,6 +19,9 @@ instance (Show a) => Show (OneOf a) where
 instance Eq (OneOf a) where
   (OneOf x) == (OneOf y) = x == y
 
+instance Foldable OneOf where
+  foldr f acc xs = foldr f acc (toList xs)
+
 -- | The empty set (no possible values)
 empty :: (Bounded a, Enum a) => OneOf a
 empty = OneOf IntSet.empty
@@ -38,6 +41,10 @@ fromList xs = OneOf (IntSet.fromList $ fromEnum <$> xs)
 -- | Convert a `OneOf` to a list of values
 toList :: OneOf a -> [a]
 toList (OneOf x) = toEnum <$> IntSet.toList x
+
+-- | Filter the elements that satisfy some predicate.
+filter :: (a -> Bool) -> OneOf a -> OneOf a
+filter f (OneOf x) = OneOf (IntSet.filter (f . toEnum) x)
 
 -- | Extracts the single element of the set if the size is exactly one, returns
 -- `Nothing` otherwise.
