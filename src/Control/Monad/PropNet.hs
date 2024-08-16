@@ -23,7 +23,7 @@ import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
-import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch)
+import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch, fromGiven)
 import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
 
@@ -77,6 +77,11 @@ runPropNetT p = runStateT p.unPropNetT (PropNetState 0 False)
 
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
 evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 False)
+
+-- | Creates a new cell with a truth maintainance system for solving constraint
+-- satisfaction problems
+logicCell :: (Partial a, MonadPropNet m) => m (Cell m (TMS a))
+logicCell = filled (fromGiven bottom)
 
 -- | Emits a new (unique) cell ID.  This should be called once for each new
 -- cell that gets created so that each has a unique ID.

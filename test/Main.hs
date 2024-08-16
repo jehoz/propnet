@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Main (main) where
@@ -28,7 +29,7 @@ uniquePairs xs = [(x, y) | (x : ys) <- tails xs, y <- ys]
 
 createSudokuNetwork :: PropNetIO [SudokuCell]
 createSudokuNetwork = do
-  cells <- replicateM 81 (filled $ fromGiven bottom)
+  cells <- replicateM 81 $ logicCell @(OneOf Val)
   let rows = chunksOf 9 cells
   let cols = transpose rows
   let boxes = fmap concat $ chunksOf 3 $ concat $ transpose $ fmap (chunksOf 3) rows
