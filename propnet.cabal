@@ -35,11 +35,13 @@ library
 test-suite propnet-test
     import:           warnings
     default-language: Haskell2010
-    -- other-modules:
-    -- other-extensions:
+
+    main-is:          Main.hs
+    other-modules:
+      , Sudoku
+
     type:             exitcode-stdio-1.0
     hs-source-dirs:   test
-    main-is:          Main.hs
     build-depends:
       , base ^>=4.17.2
       , propnet
