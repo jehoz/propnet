@@ -4,7 +4,7 @@ module Data.PropNet.Partial where
 
 import Data.Kind (Type)
 import Data.List (nub)
-import Data.PropNet.Partial.OneOf
+import Data.PropNet.Partial.OneOf hiding (filter)
 import Prelude hiding (null)
 
 -- | The different outcomes after merging two partial information values.
