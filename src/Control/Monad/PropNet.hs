@@ -26,10 +26,13 @@ import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch, fromGiven)
 import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
+import System.Random (Random (randomR), StdGen, mkStdGen)
 
 data PropNetState = PropNetState
   { -- | Incrementing counter for assigning each new cell a unique 'Name'
     nameCounter :: TMS.Name,
+    -- | Random number generator for picking branches randomly
+    rng :: StdGen,
     -- | Flag indicating that an unrecoverable contradiction was found
     contradiction :: Bool
   }
@@ -66,17 +69,20 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
     case update val new of
       Unchanged _ -> pure ()
       Changed x -> writeMutVar cell.body (x, ns) >> ns x
-      Contradiction -> modify (\(PropNetState ctr _) -> PropNetState ctr True)
+      Contradiction -> modify (\s -> s {contradiction = True})
 
   watch cell sub = do
     (val, subs) <- readMutVar cell.body
     writeMutVar cell.body (val, \x -> subs x >> sub x)
 
 runPropNetT :: (Monad m) => PropNetT m a -> m (a, PropNetState)
-runPropNetT p = runStateT p.unPropNetT (PropNetState 0 False)
+runPropNetT p = runStateT p.unPropNetT initialState
 
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
-evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 False)
+evalPropNetT p = evalStateT p.unPropNetT initialState
+
+initialState :: PropNetState
+initialState = PropNetState {nameCounter = 0, rng = mkStdGen 1123, contradiction = False}
 
 -- | Alias for cells that wrap their value in a `TMS`
 type LogicCell m a = Cell m (TMS a)
@@ -90,16 +96,24 @@ logicCell = filled (fromGiven bottom)
 -- cell that gets created so that each has a unique ID.
 nextCellName :: (Monad m) => PropNetT m TMS.Name
 nextCellName = do
-  PropNetState nameCtr contr <- get
-  let x = nameCtr
-  put (PropNetState (nameCtr + 1) contr)
+  s <- get
+  let x = s.nameCounter
+  put (s {nameCounter = x + 1})
   pure x
 
-branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => LogicCell m (OneOf a) -> m ()
+-- | Pick a random element from a list using the monad's internal RNG
+pickRandom :: (Monad m) => [a] -> PropNetT m a
+pickRandom xs = do
+  s <- get
+  let (i, rng) = randomR (0, length xs - 1) s.rng
+  put (s {rng = rng})
+  pure (xs !! i)
+
+branch :: (PrimMonad m, Bounded a, Enum a) => LogicCell (PropNetT m) (OneOf a) -> PropNetT m ()
 branch c = do
   tms <- peek c
   let (prem, possibilities) = OneOf.toList <$> deepestBranch tms
-  let val = head possibilities
+  val <- pickRandom possibilities
 
   -- make positive and negative beliefs for a branch option
   let beliefs =
