@@ -78,9 +78,12 @@ runPropNetT p = runStateT p.unPropNetT (PropNetState 0 False)
 evalPropNetT :: (Monad m) => PropNetT m a -> m a
 evalPropNetT p = evalStateT p.unPropNetT (PropNetState 0 False)
 
+-- | Alias for cells that wrap their value in a `TMS`
+type LogicCell m a = Cell m (TMS a)
+
 -- | Creates a new cell with a truth maintainance system for solving constraint
 -- satisfaction problems
-logicCell :: (Partial a, MonadPropNet m) => m (Cell m (TMS a))
+logicCell :: (Partial a, MonadPropNet m) => m (LogicCell m a)
 logicCell = filled (fromGiven bottom)
 
 -- | Emits a new (unique) cell ID.  This should be called once for each new
@@ -92,7 +95,7 @@ nextCellName = do
   put (PropNetState (nameCtr + 1) contr)
   pure x
 
-branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => Cell m (TMS (OneOf a)) -> m ()
+branch :: (MonadPropNet m, Bounded a, Enum a, Eq a, Show a) => LogicCell m (OneOf a) -> m ()
 branch c = do
   tms <- peek c
   let (prem, possibilities) = OneOf.toList <$> deepestBranch tms
@@ -114,14 +117,14 @@ selectCell cells f = do
     [] -> Nothing
     ps -> Just . fst $ minimumBy (compare `on` snd) ps
 
-leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (Cell m (TMS (OneOf a))) -> m (Maybe (Cell m (TMS (OneOf a))))
+leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (LogicCell m (OneOf a)) -> m (Maybe (LogicCell m (OneOf a)))
 leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
   where
     entropy set = let e = OneOf.size set in if e == 1 then Nothing else Just e
 
 search ::
   (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a, Show a) =>
-  t (Cell (PropNetT m) (TMS (OneOf a))) ->
+  t (LogicCell (PropNetT m) (OneOf a)) ->
   (PropNetT m) (Maybe (t a))
 search cells = do
   vals <- traverse peek cells
