@@ -7,7 +7,7 @@ import Control.Monad (replicateM, when, zipWithM_)
 import Control.Monad.PropNet
 import Control.Monad.PropNet.Class
 import Data.Foldable (for_, traverse_)
-import Data.List (tails, transpose)
+import Data.List (transpose)
 import Data.PropNet.Partial.OneOf hiding (empty)
 import Data.PropNet.Relation (liftTms2, neqR)
 import Data.PropNet.TMS (fromGiven)
