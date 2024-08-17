@@ -46,11 +46,30 @@ liftTms3 r (t1, t2, t3) = foldr iter (initTms, initTms, initTms) prems
           (x', y', z') = r (x, y, z)
        in (believe (p, x') t1', believe (p, y') t2', believe (p, z') t3')
 
--- | A relation between `OneOf`s of the same type which declares that if the
--- value of one is known, the other cannot be that known value (and vice versa).
-distinct :: (Bounded a, Enum a) => BinaryR (OneOf a) (OneOf a)
-distinct (x, y) =
+-- | Two cells should be exactly equal to one another.
+eqR :: BinaryR a a
+eqR (x, y) = (y, x)
+
+-- | If one cell holds a known value, the other cell cannot not hold that value.
+neqR :: (Bounded a, Enum a) => BinaryR (OneOf a) (OneOf a)
+neqR (x, y) =
   let f old new = if OneOf.size new == 1 then OneOf.difference old new else old
       x' = f x y
       y' = f y x
    in (x', y')
+
+-- | The first cell's value must be greater than the second cell
+gtR :: (Ord a) => BinaryR (OneOf a) (OneOf a)
+gtR (x, y) = (OneOf.filter (> minimum y) x, OneOf.filter (< maximum x) y)
+
+-- | The first cell's value must be less than the second cell
+ltR :: (Ord a) => BinaryR (OneOf a) (OneOf a)
+ltR (x, y) = gtR (y, x)
+
+-- | The first cell's value must be greater than or equal to the second cell
+geqR :: (Ord a) => BinaryR (OneOf a) (OneOf a)
+geqR (x, y) = (OneOf.filter (>= minimum y) x, OneOf.filter (<= maximum x) y)
+
+-- | The first cell's value must be less than or equal to the second cell
+leqR :: (Ord a) => BinaryR (OneOf a) (OneOf a)
+leqR (x, y) = geqR (y, x)
