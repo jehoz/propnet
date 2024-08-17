@@ -34,9 +34,6 @@ chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
 chunksOf n l = take n l : chunksOf n (drop n l)
 
-uniquePairs :: [a] -> [(a, a)]
-uniquePairs xs = [(x, y) | (x : ys) <- tails xs, y <- ys]
-
 sudoku :: PropNetIO (Maybe [Val])
 sudoku = do
   -- create a cell for each of the squares in the puzzle
@@ -48,8 +45,7 @@ sudoku = do
   let boxes = fmap concat $ chunksOf 3 $ concat $ transpose $ fmap (chunksOf 3) rows
 
   -- create propagators between the cells that enforce the rules of sudoku
-  for_ (rows ++ cols ++ boxes) $ \group ->
-    for_ (uniquePairs group) $ uncurry (enforceBinary (liftTms2 neqR))
+  for_ (rows ++ cols ++ boxes) (enforceAll (liftTms2 neqR))
 
   -- fill cells with the puzzle input
   zipWithM_ (\c i -> when (i /= 0) (push c $ fromGiven (singleton $ toEnum $ i - 1))) cells puzzleInput

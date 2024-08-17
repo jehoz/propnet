@@ -2,7 +2,9 @@
 
 module Control.Monad.PropNet.Class where
 
+import Data.Foldable (for_)
 import Data.Kind (Type)
+import Data.List (tails)
 import Data.PropNet.Partial (Partial (bottom))
 import Data.PropNet.Relation (BinaryR, TernaryR)
 import Data.PropNet.TMS (Name)
@@ -73,3 +75,10 @@ enforceTernary r c1 c2 c3 = do
   watch c3 $ \z -> with c1 $ \x -> with c2 $ \y -> push3 x y z
   where
     push3 x y z = let (x', y', z') = r (x, y, z) in push c1 x' >> push c2 y' >> push c3 z'
+
+-- | Install propagators to enforce a binary relation between every distinct
+-- pair of cells in a list.
+enforceAll :: (MonadPropNet m, Partial a) => BinaryR a a -> [Cell m a] -> m ()
+enforceAll r xs =
+  let pairs = [(x, y) | (x : ys) <- tails xs, y <- ys]
+   in for_ pairs (uncurry (enforceBinary r))
