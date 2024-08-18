@@ -6,8 +6,8 @@ import Data.Foldable (for_)
 import Data.Kind (Type)
 import Data.List (tails)
 import Data.PropNet.Partial (Partial (bottom))
-import Data.PropNet.Relation (BinaryR, TernaryR)
-import Data.PropNet.TMS (Name)
+import Data.PropNet.Relation (BinaryR, TernaryR, liftTms2)
+import Data.PropNet.TMS (Name, TMS, fromGiven)
 
 -- | An interface for building propagator networks in a way that is agnostic to
 -- the backend implementation (pure, IO, concurrent, etc)
@@ -49,6 +49,14 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
 -- | Install propagators between two cells to enforce a binary relation over
 -- their values.
 enforceBinary ::
+-- | Alias for cells that wrap their value in a `TMS`
+type LogicCell m a = Cell m (TMS a)
+
+-- | Creates a new cell with a truth maintainance system for solving constraint
+-- satisfaction problems
+logicCell :: (Partial a, MonadPropNet m) => m (LogicCell m a)
+logicCell = filled (fromGiven bottom)
+
   (MonadPropNet m, Partial a, Partial b) =>
   BinaryR a b ->
   Cell m a ->

@@ -8,7 +8,7 @@ module Control.Monad.PropNet where
 
 import Control.Monad ((>=>))
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
-import Control.Monad.PropNet.Class (MonadPropNet (..))
+import Control.Monad.PropNet.Class (LogicCell, MonadPropNet (..))
 import Control.Monad.ST (ST)
 import Control.Monad.State (MonadState (get, put), StateT, evalStateT, gets, modify, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
@@ -83,14 +83,6 @@ evalPropNetT p = evalStateT p.unPropNetT initialState
 
 initialState :: PropNetState
 initialState = PropNetState {nameCounter = 0, rng = mkStdGen 1123, contradiction = False}
-
--- | Alias for cells that wrap their value in a `TMS`
-type LogicCell m a = Cell m (TMS a)
-
--- | Creates a new cell with a truth maintainance system for solving constraint
--- satisfaction problems
-logicCell :: (Partial a, MonadPropNet m) => m (LogicCell m a)
-logicCell = filled (fromGiven bottom)
 
 -- | Emits a new (unique) cell ID.  This should be called once for each new
 -- cell that gets created so that each has a unique ID.
