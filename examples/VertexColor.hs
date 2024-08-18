@@ -35,7 +35,7 @@ petersenGraph cs =
 vertexColors :: PropNetIO (Maybe [Color])
 vertexColors = do
   cells <- replicateM 10 $ logicCell @(OneOf Color)
-  for_ (edges cells) (uncurry $ enforceBinary (liftTms2 neqR))
+  for_ (edges cells) (enforceBinary neqR)
   search cells
 
 main :: IO ()

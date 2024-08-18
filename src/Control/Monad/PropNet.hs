@@ -23,7 +23,7 @@ import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
-import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch, fromGiven)
+import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch)
 import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
 import System.Random (Random (randomR), StdGen, mkStdGen)

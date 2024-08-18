@@ -6,7 +6,7 @@ import Data.Foldable (for_)
 import Data.Kind (Type)
 import Data.List (tails)
 import Data.PropNet.Partial (Partial (bottom))
-import Data.PropNet.Relation (BinaryR, TernaryR, liftTms2)
+import Data.PropNet.Relation (BinaryR, TernaryR, liftTms2, liftTms3)
 import Data.PropNet.TMS (Name, TMS, fromGiven)
 
 -- | An interface for building propagator networks in a way that is agnostic to
@@ -46,9 +46,6 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
   with :: Cell m a -> (a -> m ()) -> m ()
   with cell = (peek cell >>=)
 
--- | Install propagators between two cells to enforce a binary relation over
--- their values.
-enforceBinary ::
 -- | Alias for cells that wrap their value in a `TMS`
 type LogicCell m a = Cell m (TMS a)
 
@@ -57,36 +54,56 @@ type LogicCell m a = Cell m (TMS a)
 logicCell :: (Partial a, MonadPropNet m) => m (LogicCell m a)
 logicCell = filled (fromGiven bottom)
 
+-- | Install propagators between two cells so that they propagate information to
+-- each other according to some binary relation.
+installBinary ::
   (MonadPropNet m, Partial a, Partial b) =>
   BinaryR a b ->
-  Cell m a ->
-  Cell m b ->
+  (Cell m a, Cell m b) ->
   m ()
-enforceBinary r c1 c2 = do
+installBinary r (c1, c2) = do
   watch c1 $ \x -> with c2 $ \y -> push2 x y
   watch c2 $ \y -> with c1 $ \x -> push2 x y
   where
     push2 x y = let (x', y') = r (x, y) in push c1 x' >> push c2 y'
 
--- | Install propagators between three cells to enforce a ternary relation over
--- their values.
-enforceTernary ::
+-- | Install propagators between three cells so that they propagate information
+-- to each other according to some ternary relation.
+installTernary ::
   (MonadPropNet m, Partial a, Partial b, Partial c) =>
   TernaryR a b c ->
-  Cell m a ->
-  Cell m b ->
-  Cell m c ->
+  (Cell m a, Cell m b, Cell m c) ->
   m ()
-enforceTernary r c1 c2 c3 = do
+installTernary r (c1, c2, c3) = do
   watch c1 $ \x -> with c2 $ \y -> with c3 $ \z -> push3 x y z
   watch c2 $ \y -> with c3 $ \z -> with c1 $ \x -> push3 x y z
   watch c3 $ \z -> with c1 $ \x -> with c2 $ \y -> push3 x y z
   where
     push3 x y z = let (x', y', z') = r (x, y, z) in push c1 x' >> push c2 y' >> push c3 z'
 
+-- | Install propagators between two logic cells so that they propagate
+-- information to each other according to some binary relation (via truth
+-- maintainance systems).
+enforceBinary ::
+  (MonadPropNet m, Partial a, Partial b) =>
+  BinaryR a b ->
+  (LogicCell m a, LogicCell m b) ->
+  m ()
+enforceBinary r = installBinary (liftTms2 r)
+
+-- | Install propagators between three logic cells so that they propagate
+-- information to each other according to some ternary relation (via truth
+-- maintainance systems).
+enforceTernary ::
+  (MonadPropNet m, Partial a, Partial b, Partial c) =>
+  TernaryR a b c ->
+  (LogicCell m a, LogicCell m b, LogicCell m c) ->
+  m ()
+enforceTernary r = installTernary (liftTms3 r)
+
 -- | Install propagators to enforce a binary relation between every distinct
 -- pair of cells in a list.
-enforceAll :: (MonadPropNet m, Partial a) => BinaryR a a -> [Cell m a] -> m ()
+enforceAll :: (MonadPropNet m, Partial a) => BinaryR a a -> [LogicCell m a] -> m ()
 enforceAll r xs =
   let pairs = [(x, y) | (x : ys) <- tails xs, y <- ys]
-   in for_ pairs (uncurry (enforceBinary r))
+   in for_ pairs (enforceBinary r)

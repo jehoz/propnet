@@ -9,7 +9,7 @@ import Control.Monad.PropNet.Class
 import Data.Foldable (for_, traverse_)
 import Data.List (transpose)
 import Data.PropNet.Partial.OneOf hiding (empty)
-import Data.PropNet.Relation (liftTms2, neqR)
+import Data.PropNet.Relation (neqR)
 import Data.PropNet.TMS (fromGiven)
 
 data Val = V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 deriving (Eq, Bounded, Enum)
@@ -45,7 +45,7 @@ sudoku = do
   let boxes = fmap concat $ chunksOf 3 $ concat $ transpose $ fmap (chunksOf 3) rows
 
   -- create propagators between the cells that enforce the rules of sudoku
-  for_ (rows ++ cols ++ boxes) (enforceAll (liftTms2 neqR))
+  for_ (rows ++ cols ++ boxes) (enforceAll neqR)
 
   -- fill cells with the puzzle input
   zipWithM_ (\c i -> when (i /= 0) (push c $ fromGiven (singleton $ toEnum $ i - 1))) cells puzzleInput
