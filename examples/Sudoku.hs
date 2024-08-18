@@ -1,6 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-unused-top-binds #-}
-
 module Sudoku where
 
 import Control.Monad (replicateM, when, zipWithM_)
@@ -37,7 +34,7 @@ chunksOf n l = take n l : chunksOf n (drop n l)
 sudoku :: PropNetIO (Maybe [Val])
 sudoku = do
   -- create a cell for each of the squares in the puzzle
-  cells <- replicateM 81 $ logicCell @(OneOf Val)
+  cells <- replicateM 81 logicCell
 
   -- group each row, column, and 3x3 box
   let rows = chunksOf 9 cells
