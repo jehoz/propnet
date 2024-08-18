@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module VertexColor where
 
@@ -6,19 +6,11 @@ import Control.Monad (replicateM)
 import Control.Monad.PropNet
 import Control.Monad.PropNet.Class hiding (with)
 import Data.Foldable (for_)
-import Data.PropNet.Partial.OneOf (OneOf)
 import Data.PropNet.Relation
 import Diagrams.Backend.SVG
 import Diagrams.Prelude hiding (Color)
 
 data Color = Blue | Green | Red deriving (Eq, Bounded, Enum)
-
-vert :: Color -> Int -> Diagram B
-vert c n = circle 0.1 # fc (toFc c) # named n
-  where
-    toFc Blue = blue
-    toFc Green = green
-    toFc Red = red
 
 edges :: [a] -> [(a, a)]
 edges xs =
@@ -28,13 +20,22 @@ edges xs =
 
 petersenGraph :: [Color] -> Diagram B
 petersenGraph cs =
-  let aopts = with & arrowHead .~ noHead & arrowTail .~ noTail
-   in atPoints (trailVertices (regPoly 5 1) ++ trailVertices (regPoly 5 0.5)) (zipWith vert cs [1 ..])
-        # applyAll [connectOutside' aopts i j | (i, j) <- edges [1 .. (10 :: Int)]]
+  atPoints
+    (trailVertices (regPoly 5 1) ++ trailVertices (regPoly 5 0.5))
+    (zipWith vert cs ids)
+    # applyAll [connectOutside' aopts i j | (i, j) <- edges ids]
+  where
+    ids = [1 .. 10] :: [Int]
+    aopts = with & arrowHead .~ noHead
+    vert c n = circle 0.1 # fc (fromColor c) # named n
+    fromColor c = case c of
+      Blue -> blue
+      Green -> green
+      Red -> red
 
 vertexColors :: PropNetIO (Maybe [Color])
 vertexColors = do
-  cells <- replicateM 10 $ logicCell @(OneOf Color)
+  cells <- replicateM 10 logicCell
   for_ (edges cells) (enforceBinary neqR)
   search cells
 
