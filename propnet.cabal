@@ -40,9 +40,13 @@ test-suite examples
     main-is:          Main.hs
     other-modules:
       , Sudoku
+      , VertexColor
 
     type:             exitcode-stdio-1.0
     hs-source-dirs:   examples
     build-depends:
       , base ^>=4.17.2
       , propnet
+      , diagrams
+      , diagrams-lib
+      , diagrams-svg
