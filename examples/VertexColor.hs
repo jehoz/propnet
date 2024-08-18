@@ -1,5 +1,13 @@
+{-# LANGUAGE TypeApplications #-}
+
 module VertexColor where
 
+import Control.Monad (replicateM)
+import Control.Monad.PropNet
+import Control.Monad.PropNet.Class hiding (with)
+import Data.Foldable (for_)
+import Data.PropNet.Partial.OneOf (OneOf)
+import Data.PropNet.Relation
 import Diagrams.Backend.SVG
 import Diagrams.Prelude hiding (Color)
 
@@ -24,5 +32,15 @@ petersenGraph cs =
    in atPoints (trailVertices (regPoly 5 1) ++ trailVertices (regPoly 5 0.5)) (zipWith vert cs [1 ..])
         # applyAll [connectOutside' aopts i j | (i, j) <- edges [1 .. (10 :: Int)]]
 
+vertexColors :: PropNetIO (Maybe [Color])
+vertexColors = do
+  cells <- replicateM 10 $ logicCell @(OneOf Color)
+  for_ (edges cells) (uncurry $ enforceBinary (liftTms2 neqR))
+  search cells
+
 main :: IO ()
-main = renderSVG "vertex-color.svg" (dims2D 400 400) (petersenGraph (replicate 10 Blue))
+main = do
+  res <- evalPropNetT vertexColors
+  case res of
+    Nothing -> putStrLn "No solution!"
+    Just colors -> renderSVG "vertex-color.svg" (dims2D 400 400) (petersenGraph colors)
