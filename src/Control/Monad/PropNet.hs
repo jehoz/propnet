@@ -137,7 +137,7 @@ leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
     entropy set = let e = OneOf.size set in if e == 1 then Nothing else Just e
 
 search ::
-  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a, Show a) =>
+  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a) =>
   t (LogicCell (PropNetT m) (OneOf a)) ->
   (PropNetT m) (Maybe (t a))
 search cells = do
