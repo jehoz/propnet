@@ -46,3 +46,19 @@ fromList xs = Combination (IntSet.fromList $ fromEnum <$> xs)
 -- | Convert a `Combination` to a list of values
 toList :: Combination a -> [a]
 toList (Combination x) = toEnum <$> IntSet.toList x
+
+-- | Is the value contained in the set?
+member :: a -> Combination a -> Bool
+member x (Combination s) = IntSet.member (fromEnum x) s
+
+-- | Is the value not in the set?
+notMember :: a -> Combination a -> Bool
+notMember x = not . member x
+
+-- | The number of elements in the set
+size :: Combination a -> Int
+size (Combination x) = IntSet.size x
+
+-- | Is the set empty?
+null :: Combination a -> Bool
+null (Combination x) = IntSet.null x
