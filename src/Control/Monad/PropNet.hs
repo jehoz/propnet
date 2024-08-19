@@ -7,6 +7,7 @@
 module Control.Monad.PropNet where
 
 import Control.Monad ((>=>))
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (LogicCell, MonadPropNet (..))
 import Control.Monad.ST (ST)
@@ -18,7 +19,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
 import Data.List (minimumBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, fromJust)
 import Data.Primitive (MutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
@@ -48,6 +49,9 @@ instance (PrimMonad m) => PrimMonad (PropNetT m) where
   type PrimState (PropNetT m) = PrimState m
 
   primitive = lift . primitive
+
+instance (MonadIO m) => MonadIO (PropNetT m) where
+  liftIO = PropNetT . liftIO
 
 instance (PrimMonad m) => MonadPropNet (PropNetT m) where
   data Cell (PropNetT m) a = Cell
@@ -132,10 +136,20 @@ search ::
   (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a) =>
   t (LogicCell (PropNetT m) (OneOf a)) ->
   (PropNetT m) (Maybe (t a))
-search cells = do
+search cells = searchDebug cells (const $ pure ())
+
+searchDebug ::
+  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a) =>
+  t (LogicCell (PropNetT m) (OneOf a)) ->
+  (t (OneOf a) -> PropNetT m ()) ->
+  (PropNetT m) (Maybe (t a))
+searchDebug cells callback = do
   vals <- traverse peek cells
 
   let (deepest, _) = deepestBranch (head $ toList vals)
+
+  callback (fromJust . consequentOf deepest <$> vals)
+
   let solution = traverse (consequentOf deepest >=> only) vals
 
   case solution of
@@ -145,7 +159,7 @@ search cells = do
         Nothing -> error "It's not solved and I can't find anywhere to branch!"
         Just c -> branch c
       failed <- gets (\s -> s.contradiction)
-      if failed then pure Nothing else search cells
+      if failed then pure Nothing else searchDebug cells callback
     r -> pure r
 
 type PropNetIO a = PropNetT IO a
