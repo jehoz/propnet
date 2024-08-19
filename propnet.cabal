@@ -41,8 +41,8 @@ test-suite examples
     main-is:          Main.hs
     other-modules:
       , Sudoku
+      , Tiles
       , VertexColor
-
     type:             exitcode-stdio-1.0
     hs-source-dirs:   examples
     build-depends:
