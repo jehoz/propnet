@@ -11,10 +11,8 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Hashable (Hashable (hashWithSalt))
-import Data.List (maximumBy, nub)
+import Data.List (maximumBy)
 import Data.PropNet.Partial
-import Data.PropNet.Partial.OneOf (OneOf)
-import qualified Data.PropNet.Partial.OneOf as OneOf
 
 -- | A unique identifier for a parameter in our system (ie. some `Cell` in the
 -- propagator network).
@@ -80,10 +78,10 @@ data TMS a = TMS
   deriving (Eq, Show)
 
 instance Functor TMS where
-  fmap f (TMS blfs rej) = TMS (fmap f blfs) rej
+  fmap f tms = tms {beliefs = fmap f tms.beliefs}
 
 instance (Eq a, Partial a) => Partial (TMS a) where
-  bottom = TMS HashMap.empty HashSet.empty
+  bottom = empty
 
   leq (TMS blfs1 rej1) (TMS blfs2 rej2) =
     blfs1 `HashMap.isSubmapOf` blfs2 && rej1 `HashSet.isSubsetOf` rej2
@@ -111,15 +109,7 @@ deepestBranch tms = maximumBy (compare `on` (HashMap.size . fst)) (HashMap.toLis
 
 -- | Get the believed value for a given premise (if it exists)
 consequentOf :: Premise -> TMS a -> Maybe a
-consequentOf prem (TMS blfs _) = HashMap.lookup prem blfs
-
--- | Get consequents of current beliefs which have the most information.
-bestGuesses :: (Partial a) => TMS a -> [a]
-bestGuesses (TMS blfs _) = maxima (HashMap.elems blfs)
-
--- | Get unique values across all best guesses
-bestPossibilities :: (Eq a, Bounded a, Enum a) => TMS (OneOf a) -> [a]
-bestPossibilities = nub . concatMap OneOf.toList . bestGuesses
+consequentOf prem tms = HashMap.lookup prem tms.beliefs
 
 -- | Add a belief to the TMS, overwriting any previous belief with the same
 -- premise.
@@ -127,7 +117,7 @@ bestPossibilities = nub . concatMap OneOf.toList . bestGuesses
 -- __NOTE__: This does not affect any of the other beliefs in the TMS or ensure
 -- that the premise is valid. If that is what you want, use `assimilate`.
 believe :: (Premise, a) -> TMS a -> TMS a
-believe (prem, x) (TMS blfs rej) = TMS (HashMap.insert prem x blfs) rej
+believe (prem, x) tms = tms {beliefs = HashMap.insert prem x tms.beliefs}
 
 -- | Reject a premise, asserting that we will always encounter a contradiction
 -- if we take it to be true.
@@ -147,8 +137,8 @@ reject prem tms =
         let parent = removeAssumption a prem
         pure (reject parent . deleteRej inverse)
 
-      insertRej p t = TMS t.beliefs (HashSet.insert p t.rejected)
-      deleteRej p t = TMS t.beliefs (HashSet.delete p t.rejected)
+      insertRej p t = t {rejected = HashSet.insert p t.rejected}
+      deleteRej p t = t {rejected = HashSet.delete p t.rejected}
    in case induced of
         [] -> insertRej prem tms
         fs -> foldr ($) tms fs
@@ -162,7 +152,7 @@ valid prem tms = not (any (prem `subsumes`) tms.rejected)
 prune :: TMS a -> TMS a
 prune tms =
   let blfs' = HashMap.filterWithKey (\p _ -> valid p tms) tms.beliefs
-   in TMS blfs' tms.rejected
+   in tms {beliefs = blfs'}
 
 -- | Takes in a belief and incorporates it into the other beliefs in the TMS,
 -- resolving any contradictions that are found in the process.
@@ -188,5 +178,5 @@ assimilate (prem, newVal) tms
 combine :: (Partial a) => TMS a -> TMS a -> TMS a
 combine t1 t2 =
   let rejected = HashSet.union t1.rejected t2.rejected
-      t1' = if rejected /= t1.rejected then prune (TMS t1.beliefs rejected) else t1
+      t1' = if rejected /= t1.rejected then prune (t1 {rejected = rejected}) else t1
    in foldr assimilate t1' (HashMap.toList t2.beliefs)
