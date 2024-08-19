@@ -19,6 +19,7 @@ library
       , Control.Monad.PropNet
       , Control.Monad.PropNet.Class
       , Data.PropNet.Partial
+      , Data.PropNet.Partial.Combination
       , Data.PropNet.Partial.OneOf
       , Data.PropNet.Relation
       , Data.PropNet.TMS
