@@ -27,7 +27,7 @@ import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), consequentOf, deepestBranch)
 import qualified Data.PropNet.TMS as TMS
 import Data.Traversable (for)
-import System.Random (Random (randomR), StdGen, mkStdGen)
+import System.Random (Random (randomR), StdGen, initStdGen, mkStdGen)
 
 data PropNetState = PropNetState
   { -- | Incrementing counter for assigning each new cell a unique 'Name'
@@ -96,6 +96,16 @@ nextCellName = do
   let x = s.nameCounter
   put (s {nameCounter = x + 1})
   pure x
+
+-- | Seed the internal random number generator with some integer
+seed :: (Monad m) => Int -> PropNetT m ()
+seed x = modify $ \s -> s {rng = mkStdGen x}
+
+-- | Seed the internal random number generator using system entropy
+randomSeed :: PropNetT IO ()
+randomSeed = do
+  rng <- initStdGen
+  modify $ \s -> s {rng = rng}
 
 -- | Pick a random element from a list using the monad's internal RNG
 pickRandom :: (Monad m) => [a] -> PropNetT m a
