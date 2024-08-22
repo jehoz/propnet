@@ -1,10 +1,11 @@
 module Tiles where
 
-import Control.Monad (guard, replicateM)
+import Control.Monad (guard, replicateM, when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.PropNet (PropNetIO, evalPropNetT, search, searchDebug)
+import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDebug)
 import Control.Monad.PropNet.Class (enforceBinary, logicCell, push)
 import Data.Foldable (for_, traverse_)
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (transpose)
 import Data.Maybe (fromMaybe)
 import Data.PropNet.Partial.Combination (Combination, CombinationOf)
@@ -19,7 +20,7 @@ data Connection = N | S | W | E deriving (Bounded, Enum)
 type Tile = Combination Connection
 
 height :: Int
-height = 5
+height = 10
 
 width :: Int
 width = 10
@@ -48,8 +49,9 @@ match i j (x, y) = (x', y')
 
     match' e1 e2 (c1, c2) = fromMaybe c1 $ do
       c <- only c2
-      guard (C.member e2 c)
-      pure (OneOf.filter (C.member e1) c1)
+      if C.member e2 c
+        then pure (OneOf.filter (C.member e1) c1)
+        else pure (OneOf.filter (C.notMember e1) c1)
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
@@ -57,6 +59,7 @@ chunksOf n l = take n l : chunksOf n (drop n l)
 
 generateTiles :: PropNetIO (Maybe [Tile])
 generateTiles = do
+  randomSeed
   cells <- replicateM (height * width) logicCell
 
   -- tiles cannot have only one connection
@@ -69,10 +72,17 @@ generateTiles = do
   for_ (concat $ zipWith zip rows (drop 1 rows)) (enforceBinary (match S N))
   for_ (concat $ zipWith zip cols (drop 1 cols)) (enforceBinary (match E W))
 
+  ref <- liftIO $ newIORef (0 :: Int)
+
   searchDebug cells $ \vals -> do
     let tiles = maybe "_" showTile . only <$> vals
     let text = unlines $ concat <$> chunksOf width tiles
+    -- liftIO (putStrLn $ text ++ "\ESC[11F")
     liftIO (putStrLn text)
+    count <- liftIO $ readIORef ref
+    liftIO $ writeIORef ref (count + 1)
+    -- liftIO $ print count
+    pure ()
 
 main :: IO ()
 main = do
