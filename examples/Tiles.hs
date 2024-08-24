@@ -2,8 +2,8 @@ module Tiles where
 
 import Control.Monad (guard, replicateM, when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDebug)
-import Control.Monad.PropNet.Class (enforceBinary, logicCell, push)
+import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDFS, searchDebug)
+import Control.Monad.PropNet.Class (empty, enforceBinary, installBinary, logicCell, push)
 import Data.Foldable (for_, traverse_)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (transpose)
@@ -13,17 +13,17 @@ import qualified Data.PropNet.Partial.Combination as C
 import Data.PropNet.Partial.OneOf (only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.Relation (BinaryR)
-import Data.PropNet.TMS (fromGiven)
+import Data.PropNet.TMS (fromGiven, given)
 
-data Connection = N | S | W | E deriving (Bounded, Enum)
+data Connection = N | S | W | E deriving (Bounded, Enum, Show)
 
 type Tile = Combination Connection
 
 height :: Int
-height = 10
+height = 20
 
 width :: Int
-width = 10
+width = 40
 
 showTile :: Tile -> String
 showTile x = case C.toList x of
@@ -60,29 +60,31 @@ chunksOf n l = take n l : chunksOf n (drop n l)
 generateTiles :: PropNetIO (Maybe [Tile])
 generateTiles = do
   randomSeed
-  cells <- replicateM (height * width) logicCell
+  cells <- replicateM (height * width) empty
 
   -- tiles cannot have only one connection
-  let validTiles = fromGiven $ OneOf.filter (\x -> C.size x /= 1) OneOf.universal
+  let validTiles = OneOf.filter (\x -> C.size x /= 1) OneOf.universal
   traverse_ (`push` validTiles) cells
 
   let rows = chunksOf width cells
   let cols = transpose rows
 
-  for_ (concat $ zipWith zip rows (drop 1 rows)) (enforceBinary (match S N))
-  for_ (concat $ zipWith zip cols (drop 1 cols)) (enforceBinary (match E W))
+  for_ (concat $ zipWith zip rows (drop 1 rows)) (installBinary (match S N))
+  for_ (concat $ zipWith zip cols (drop 1 cols)) (installBinary (match E W))
 
-  ref <- liftIO $ newIORef (0 :: Int)
+  searchDFS given cells
 
-  searchDebug cells $ \vals -> do
-    let tiles = maybe "_" showTile . only <$> vals
-    let text = unlines $ concat <$> chunksOf width tiles
-    -- liftIO (putStrLn $ text ++ "\ESC[11F")
-    liftIO (putStrLn text)
-    count <- liftIO $ readIORef ref
-    liftIO $ writeIORef ref (count + 1)
-    -- liftIO $ print count
-    pure ()
+-- ref <- liftIO $ newIORef (0 :: Int)
+
+-- searchDebug cells $ \vals -> do
+--   let tiles = maybe "_" showTile . only <$> vals
+--   let text = unlines $ concat <$> chunksOf width tiles
+--   -- liftIO (putStrLn $ text ++ "\ESC[11F")
+--   liftIO (putStrLn text)
+--   count <- liftIO $ readIORef ref
+--   liftIO $ writeIORef ref (count + 1)
+--   -- liftIO $ print count
+--   pure ()
 
 main :: IO ()
 main = do
