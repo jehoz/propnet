@@ -6,8 +6,7 @@
 
 module Control.Monad.PropNet where
 
-import Control.Applicative (Alternative (empty), asum)
-import Control.Monad (forM, liftM2, replicateM, zipWithM, zipWithM_, (>=>))
+import Control.Monad (liftM2, when, zipWithM_, (>=>))
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (LogicCell, MonadPropNet (..))
@@ -20,7 +19,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
 import Data.List (minimumBy)
-import Data.Maybe (catMaybes, fromJust)
+import Data.Maybe (catMaybes, fromJust, isNothing)
 import Data.Primitive (MutVar, modifyMutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
@@ -195,7 +194,7 @@ type PropNetIO a = PropNetT IO a
 type PropNetST s a = PropNetT (ST s) a
 
 solution :: (MonadPropNet m) => [Cell m (OneOf a)] -> m (Either (Cell m (OneOf a)) [a])
-solution cells = iter cells (Right [])
+solution cells = iter (reverse cells) (Right [])
   where
     iter [] res = pure res
     iter (c : cs) (Right vs) = do
@@ -218,27 +217,34 @@ searchDFS ::
 searchDFS prem cells = do
   res <- solution cells
   case res of
-    Right vs -> pure (Just (reverse vs))
+    Right vs -> pure (Just vs)
     Left branchPt -> do
       backup <- traverse peek cells
       ps <- peek branchPt >>= shuffle . OneOf.toList
 
       let tryBranch value = do
             let prem' = addAssumption (Assumption (cellName branchPt) (fromEnum value)) True prem
+
             push branchPt (OneOf.singleton value)
+
             s <- get
             if s.contradiction
               then do
                 zipWithM_ replace cells backup
+
+                put (s {contradiction = False})
                 pure Nothing
-              else searchDFS prem' cells
+              else do
+                r <- searchDFS prem' cells
+                when (isNothing r) (zipWithM_ replace cells backup)
+                pure r
 
-      jank tryBranch ps
+      firstJustM tryBranch ps
 
-jank :: (Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
-jank _ [] = pure Nothing
-jank f (x : xs) = do
+firstJustM :: (Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
+firstJustM _ [] = pure Nothing
+firstJustM f (x : xs) = do
   r <- f x
   case r of
-    Nothing -> jank f xs
+    Nothing -> firstJustM f xs
     _ -> pure r
