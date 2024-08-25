@@ -41,7 +41,7 @@ sudoku = do
   let boxes = fmap concat $ chunksOf 3 $ concat $ transpose $ fmap (chunksOf 3) rows
 
   -- create propagators between the cells that enforce the rules of sudoku
-  for_ (rows ++ cols ++ boxes) (enforceAll neqR)
+  for_ (rows ++ cols ++ boxes) (enforceEachPair neqR)
 
   -- fill cells with the puzzle input
   zipWithM_ (\c i -> when (i /= 0) (push c (singleton $ toEnum $ i - 1))) cells puzzleInput
@@ -51,7 +51,7 @@ sudoku = do
 
 main :: IO ()
 main = do
-  res <- evalPropNetT sudoku
+  res <- runPropNet sudoku
   case res of
     Nothing -> putStrLn "No solution!"
     Just xs ->

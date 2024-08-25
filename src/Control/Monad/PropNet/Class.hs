@@ -7,7 +7,6 @@ import Data.Kind (Type)
 import Data.List (tails)
 import Data.PropNet.Partial (Partial (bottom))
 import Data.PropNet.Relation (BinaryR, TernaryR)
-import Data.PropNet.TMS (Name)
 
 -- | An interface for building propagator networks in a way that is agnostic to
 -- the backend implementation (pure, IO, concurrent, etc)
@@ -17,10 +16,6 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
   -- Most likely implemented as a mutable reference in some monadic context
   -- (`IORef`, `STRef`, `MVar`, etc)
   data Cell m :: Type -> Type
-
-  -- | The name of a cell.  This should be unique and consistent for each cell
-  -- in the network.
-  cellName :: Cell m a -> Name
 
   -- | Create a new cell that is filled with a given value
   filled :: (Partial a) => a -> m (Cell m a)
@@ -75,7 +70,7 @@ enforceTernary r (c1, c2, c3) = do
 
 -- | Install propagators to enforce a binary relation between every distinct
 -- pair of cells in a list.
-enforceAll :: (MonadPropNet m, Partial a) => BinaryR a a -> [Cell m a] -> m ()
-enforceAll r xs =
+enforceEachPair :: (MonadPropNet m, Partial a) => BinaryR a a -> [Cell m a] -> m ()
+enforceEachPair r xs =
   let pairs = [(x, y) | (x : ys) <- tails xs, y <- ys]
    in for_ pairs (enforceBinary r)

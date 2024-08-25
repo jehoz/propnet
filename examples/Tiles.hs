@@ -2,7 +2,7 @@ module Tiles where
 
 import Control.Monad (replicateM)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDebug)
+import Control.Monad.PropNet
 import Control.Monad.PropNet.Class (empty, enforceBinary, push)
 import Data.Foldable (for_, traverse_)
 import Data.List (transpose)
@@ -77,7 +77,7 @@ generateTiles = do
 
 main :: IO ()
 main = do
-  res <- evalPropNetT generateTiles
+  res <- runPropNet generateTiles
   case res of
     Nothing -> putStrLn "No solution!"
     Just ts -> do

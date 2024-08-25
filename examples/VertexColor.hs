@@ -14,9 +14,9 @@ data Color = Blue | Green | Red deriving (Eq, Bounded, Enum)
 
 edges :: [a] -> [(a, a)]
 edges xs =
-  let outer = take 5 xs
-      inner = drop 5 xs
-   in zip outer (drop 1 (cycle outer)) ++ zip inner (drop 2 (cycle inner)) ++ zip outer inner
+  let outside = take 5 xs
+      inside = drop 5 xs
+   in zip outside (drop 1 (cycle outside)) ++ zip inside (drop 2 (cycle inside)) ++ zip outside inside
 
 petersenGraph :: [Color] -> Diagram B
 petersenGraph cs =
@@ -41,7 +41,7 @@ vertexColors = do
 
 main :: IO ()
 main = do
-  res <- evalPropNetT vertexColors
+  res <- runPropNet vertexColors
   case res of
     Nothing -> putStrLn "No solution!"
     Just colors -> renderSVG "vertex-color.svg" (dims2D 400 400) (petersenGraph colors)

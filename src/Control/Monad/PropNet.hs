@@ -10,7 +10,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
 import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (MonadState (get, put), StateT, evalStateT, modify, runStateT)
+import Control.Monad.State (MonadState (get, put), StateT, evalStateT, modify)
 import Control.Monad.Trans (MonadTrans, lift)
 import Data.Kind (Type)
 import Data.Maybe (isNothing)
@@ -18,16 +18,13 @@ import Data.Primitive (MutVar, modifyMutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
-import qualified Data.PropNet.TMS as TMS
 import System.Random (Random (randomR), StdGen, initStdGen, mkStdGen)
 import qualified System.Random.Shuffle as Shuffle
 
 data PropNetState = PropNetState
-  { -- | Incrementing counter for assigning each new cell a unique 'Name'
-    nameCounter :: TMS.Name,
-    -- | Random number generator for picking branches randomly
+  { -- | Random number generator
     rng :: StdGen,
-    -- | Flag indicating that an unrecoverable contradiction was found
+    -- | Flag indicating that a contradiction was found during propagation
     contradiction :: Bool
   }
 
@@ -52,16 +49,12 @@ instance (MonadIO m) => MonadIO (PropNetT m) where
 
 instance (PrimMonad m) => MonadPropNet (PropNetT m) where
   data Cell (PropNetT m) a = Cell
-    { name :: TMS.Name,
-      body :: MutVar (PrimState m) (a, a -> PropNetT m ())
+    { body :: MutVar (PrimState m) (a, a -> PropNetT m ())
     }
 
-  cellName (Cell name _) = name
-
   filled v = do
-    name <- nextCellName
     body <- newMutVar (v, \_ -> pure ())
-    pure $ Cell name body
+    pure $ Cell body
 
   peek cell = fst <$> readMutVar cell.body
 
@@ -76,27 +69,16 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
     (val, subs) <- readMutVar cell.body
     writeMutVar cell.body (val, \x -> subs x >> sub x)
 
-runPropNetT :: (Monad m) => PropNetT m a -> m (a, PropNetState)
-runPropNetT p = runStateT p.unPropNetT initialState
-
-evalPropNetT :: (Monad m) => PropNetT m a -> m a
-evalPropNetT p = evalStateT p.unPropNetT initialState
+-- | Evaluate a propagator network computation
+runPropNet :: (Monad m) => PropNetT m a -> m a
+runPropNet p = evalStateT p.unPropNetT initialState
 
 initialState :: PropNetState
-initialState = PropNetState {nameCounter = 0, rng = mkStdGen 1123, contradiction = False}
+initialState = PropNetState {rng = mkStdGen 1123, contradiction = False}
 
 -- | Replace the value of a cell without triggering it's propagators
 replace :: (PrimMonad m) => Cell (PropNetT m) a -> a -> PropNetT m ()
 replace cell v = modifyMutVar cell.body (\(_, ns) -> (v, ns))
-
--- | Emits a new (unique) cell ID.  This should be called once for each new
--- cell that gets created so that each has a unique ID.
-nextCellName :: (Monad m) => PropNetT m TMS.Name
-nextCellName = do
-  s <- get
-  let x = s.nameCounter
-  put (s {nameCounter = x + 1})
-  pure x
 
 -- | Seed the internal random number generator with some integer
 seed :: (Monad m) => Int -> PropNetT m ()
