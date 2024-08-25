@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
-module Data.PropNet.TMS where
+module Data.PropNet.TMS {-# DEPRECATED "Not actually used anymore, but keeping this around in case I decide to reincorporate it later." #-} where
 
 import Control.Monad (guard)
 import Data.Function (on)
