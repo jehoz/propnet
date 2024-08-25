@@ -1,32 +1,24 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoFieldSelectors #-}
 
 module Control.Monad.PropNet where
 
-import Control.Monad (liftM2, when, zipWithM_, (>=>))
+import Control.Monad (liftM2, when, zipWithM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Primitive (PrimMonad (primitive), PrimState)
-import Control.Monad.PropNet.Class (LogicCell, MonadPropNet (..))
+import Control.Monad.PropNet.Class (MonadPropNet (..))
 import Control.Monad.ST (ST)
-import Control.Monad.State (MonadState (get, put), StateT, evalStateT, gets, modify, runStateT)
+import Control.Monad.State (MonadState (get, put), StateT, evalStateT, modify, runStateT)
 import Control.Monad.Trans (MonadTrans, lift)
-import Data.Foldable (toList)
-import Data.Function (on)
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.HashSet as HashSet
 import Data.Kind (Type)
-import Data.List (minimumBy)
-import Data.Maybe (catMaybes, fromJust, isNothing)
+import Data.Maybe (isNothing)
 import Data.Primitive (MutVar, modifyMutVar, newMutVar, readMutVar, writeMutVar)
 import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
 import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
-import Data.PropNet.TMS (Assumption (..), Premise, TMS (..), addAssumption, consequentOf, deepestBranch)
 import qualified Data.PropNet.TMS as TMS
-import Data.Traversable (for)
 import System.Random (Random (randomR), StdGen, initStdGen, mkStdGen)
 import qualified System.Random.Shuffle as Shuffle
 
@@ -42,6 +34,10 @@ data PropNetState = PropNetState
 newtype PropNetT (m :: Type -> Type) (a :: Type) = PropNetT
   {unPropNetT :: StateT PropNetState m a}
   deriving (Functor, Applicative, Monad, MonadState PropNetState)
+
+type PropNetIO a = PropNetT IO a
+
+type PropNetST s a = PropNetT (ST s) a
 
 instance MonadTrans PropNetT where
   lift = PropNetT . lift
@@ -125,6 +121,7 @@ pickRandom xs = do
   i <- getRandomR (0, length xs - 1)
   pure (xs !! i)
 
+-- | Randmly permute a list using internal RNG
 shuffle :: (Monad m) => [a] -> PropNetT m [a]
 shuffle [] = pure []
 shuffle xs = fmap (Shuffle.shuffle xs) (randseq (length xs - 1))
@@ -132,69 +129,63 @@ shuffle xs = fmap (Shuffle.shuffle xs) (randseq (length xs - 1))
     randseq 0 = pure []
     randseq i = liftM2 (:) (getRandomR (0, i)) (randseq (i - 1))
 
-branch :: (PrimMonad m, Bounded a, Enum a) => LogicCell (PropNetT m) (OneOf a) -> PropNetT m ()
-branch c = do
-  tms <- peek c
-  let (prem, possibilities) = OneOf.toList <$> deepestBranch tms
-  val <- pickRandom possibilities
-
-  -- make positive and negative beliefs for a branch option
-  let beliefs =
-        let assumption = Assumption (cellName c) (fromEnum val)
-         in [ (HashMap.insert assumption True prem, OneOf.singleton val),
-              (HashMap.insert assumption False prem, OneOf.complement (OneOf.singleton val))
-            ]
-
-  push c $ TMS (HashMap.fromList beliefs) HashSet.empty
-
-selectCell :: (MonadPropNet m, Traversable t, Ord b) => t (Cell m a) -> (a -> Maybe b) -> m (Maybe (Cell m a))
-selectCell cells f = do
-  pairs <- catMaybes . toList <$> for cells (\c -> peek c >>= \v -> pure $ (c,) <$> f v)
-  pure $ case pairs of
-    [] -> Nothing
-    ps -> Just . fst $ minimumBy (compare `on` snd) ps
-
-leastEntropyFor :: (Traversable t, MonadPropNet m, Bounded a, Enum a) => Premise -> t (LogicCell m (OneOf a)) -> m (Maybe (LogicCell m (OneOf a)))
-leastEntropyFor prem cells = selectCell cells (consequentOf prem >=> entropy)
-  where
-    entropy set = let e = OneOf.size set in if e == 1 then Nothing else Just e
-
+-- | Find a solution to the network if one exists
+-- (i.e. a single value for each cell such that all constraints are satisfied).
 search ::
-  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a) =>
-  t (LogicCell (PropNetT m) (OneOf a)) ->
-  (PropNetT m) (Maybe (t a))
-search cells = searchDebug cells (const $ pure ())
+  (PrimMonad m, Eq a, Bounded a, Enum a) =>
+  [Cell (PropNetT m) (OneOf a)] ->
+  (PropNetT m) (Maybe [a])
+search cells = searchDebug cells (\_ -> pure ())
 
+-- | Same as `search` but takes a callback function which is called at the
+-- beginning of every iteration which is given a list of the current values of
+-- all the cells (in order).
 searchDebug ::
-  (Traversable t, PrimMonad m, Eq a, Bounded a, Enum a) =>
-  t (LogicCell (PropNetT m) (OneOf a)) ->
-  (t (OneOf a) -> PropNetT m ()) ->
-  (PropNetT m) (Maybe (t a))
+  (PrimMonad m, Eq a, Bounded a, Enum a) =>
+  [Cell (PropNetT m) (OneOf a)] ->
+  ([OneOf a] -> PropNetT m ()) ->
+  (PropNetT m) (Maybe [a])
 searchDebug cells callback = do
   vals <- traverse peek cells
+  callback vals
 
-  let (deepest, _) = deepestBranch (head $ toList vals)
+  res <- solvedOrBranch cells
+  case res of
+    Right vs -> pure (Just vs)
+    Left branchPt -> do
+      backup <- traverse peek cells
+      ps <- peek branchPt >>= shuffle . OneOf.toList
 
-  callback (fromJust . consequentOf deepest <$> vals)
+      let tryBranch value = do
+            push branchPt (OneOf.singleton value)
 
-  let solution = traverse (consequentOf deepest >=> only) vals
+            s <- get
+            if s.contradiction
+              then do
+                zipWithM_ replace cells backup
+                put (s {contradiction = False})
+                pure Nothing
+              else do
+                r <- searchDebug cells callback
+                when (isNothing r) (zipWithM_ replace cells backup)
+                pure r
 
-  case solution of
-    Nothing -> do
-      branchPt <- leastEntropyFor deepest cells
-      case branchPt of
-        Nothing -> error "It's not solved and I can't find anywhere to branch!"
-        Just c -> branch c
-      failed <- gets (\s -> s.contradiction)
-      if failed then pure Nothing else searchDebug cells callback
-    r -> pure r
+      firstJustM tryBranch ps
 
-type PropNetIO a = PropNetT IO a
+-- | Applies the first argument to each element of the second argument until a
+-- @Just@ result, which is returned.
+firstJustM :: (Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
+firstJustM _ [] = pure Nothing
+firstJustM f (x : xs) = do
+  r <- f x
+  case r of
+    Nothing -> firstJustM f xs
+    _ -> pure r
 
-type PropNetST s a = PropNetT (ST s) a
-
-solution :: (MonadPropNet m) => [Cell m (OneOf a)] -> m (Either (Cell m (OneOf a)) [a])
-solution cells = iter (reverse cells) (Right [])
+-- | Returns a valid solution (a single value for each given cell) or an
+-- unsolved cell with the least number of possibilities.
+solvedOrBranch :: (MonadPropNet m) => [Cell m (OneOf a)] -> m (Either (Cell m (OneOf a)) [a])
+solvedOrBranch cells = iter (reverse cells) (Right [])
   where
     iter [] res = pure res
     iter (c : cs) (Right vs) = do
@@ -208,43 +199,3 @@ solution cells = iter (reverse cells) (Right [])
       if OneOf.size val > 1 && OneOf.size val < OneOf.size best
         then iter cs (Left c)
         else iter cs (Left b)
-
-searchDFS ::
-  (PrimMonad m, Eq a, Bounded a, Enum a, Show a) =>
-  Premise ->
-  [Cell (PropNetT m) (OneOf a)] ->
-  (PropNetT m) (Maybe [a])
-searchDFS prem cells = do
-  res <- solution cells
-  case res of
-    Right vs -> pure (Just vs)
-    Left branchPt -> do
-      backup <- traverse peek cells
-      ps <- peek branchPt >>= shuffle . OneOf.toList
-
-      let tryBranch value = do
-            let prem' = addAssumption (Assumption (cellName branchPt) (fromEnum value)) True prem
-
-            push branchPt (OneOf.singleton value)
-
-            s <- get
-            if s.contradiction
-              then do
-                zipWithM_ replace cells backup
-
-                put (s {contradiction = False})
-                pure Nothing
-              else do
-                r <- searchDFS prem' cells
-                when (isNothing r) (zipWithM_ replace cells backup)
-                pure r
-
-      firstJustM tryBranch ps
-
-firstJustM :: (Monad m) => (a -> m (Maybe b)) -> [a] -> m (Maybe b)
-firstJustM _ [] = pure Nothing
-firstJustM f (x : xs) = do
-  r <- f x
-  case r of
-    Nothing -> firstJustM f xs
-    _ -> pure r
