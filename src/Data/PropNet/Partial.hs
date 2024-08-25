@@ -8,7 +8,7 @@ import Data.PropNet.Partial.OneOf hiding (filter)
 import Prelude hiding (null)
 
 -- | The different outcomes after merging two partial information values.
-data UpdateResult (a :: Type)
+data MergeResult (a :: Type)
   = -- | The incoming value was redundant and provided no new information.
     Unchanged a
   | -- | The incoming value gave us new information and our new value is x.
@@ -17,12 +17,12 @@ data UpdateResult (a :: Type)
     Contradiction
   deriving (Eq, Show)
 
-instance Functor UpdateResult where
+instance Functor MergeResult where
   fmap f (Changed x) = Changed (f x)
   fmap f (Unchanged x) = Unchanged (f x)
   fmap _ Contradiction = Contradiction
 
-instance Applicative UpdateResult where
+instance Applicative MergeResult where
   pure = Unchanged
 
   Contradiction <*> _ = Contradiction
@@ -32,7 +32,7 @@ instance Applicative UpdateResult where
   Changed f <*> Unchanged x = Changed (f x)
   Changed f <*> Changed x = Changed (f x)
 
-instance Monad UpdateResult where
+instance Monad MergeResult where
   Contradiction >>= _ = Contradiction
   Unchanged x >>= f = f x
   Changed x >>= f = case f x of
@@ -52,13 +52,13 @@ class (Eq a) => Partial (a :: Type) where
   bottom :: a
 
   -- | The partial order relation (<=) over elements of the semilattice.
-  -- If @x `leq` y == True@ then @y@ should contain the same information @x@ or
-  -- strictly more without any contradictions.
+  -- If @x `leq` y == True@ then @y@ should contain the same information as @x@
+  -- or strictly more without any contradictions.
   leq :: a -> a -> Bool
 
   -- | Merge the current value (first argument) with a new incoming value
   -- (second argument).
-  update :: a -> a -> UpdateResult a
+  merge :: a -> a -> MergeResult a
 
 -- | Maybe is the simplest partial information type, containing either no
 -- information or complete information about a value.
@@ -70,10 +70,10 @@ instance (Eq a) => Partial (Maybe a) where
   Just _ `leq` Nothing = False
   Just x `leq` Just y = x == y
 
-  update old@(Just x) (Just y) =
+  merge old@(Just x) (Just y) =
     if x /= y then Contradiction else Unchanged old
-  update old Nothing = Unchanged old
-  update Nothing x@(Just _) = Changed x
+  merge old Nothing = Unchanged old
+  merge Nothing x@(Just _) = Changed x
 
 -- | `OneOf`s represent partial information as a set of possible values.
 -- Two sets of possible values combine via intersection to reduce the
@@ -83,7 +83,7 @@ instance (Bounded a, Enum a) => Partial (OneOf a) where
 
   leq = flip isSubsetOf
 
-  update s1 s2
+  merge s1 s2
     | null s3 = Contradiction
     | s1 == s3 = Unchanged s1
     | otherwise = Changed s3

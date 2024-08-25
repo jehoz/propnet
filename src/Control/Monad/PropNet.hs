@@ -15,7 +15,7 @@ import Control.Monad.Trans (MonadTrans, lift)
 import Data.Kind (Type)
 import Data.Maybe (isNothing)
 import Data.Primitive (MutVar, modifyMutVar, newMutVar, readMutVar, writeMutVar)
-import Data.PropNet.Partial (Partial (..), UpdateResult (..), update)
+import Data.PropNet.Partial (MergeResult (..), Partial (..), merge)
 import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
 import System.Random (Random (randomR), StdGen, initStdGen, mkStdGen)
@@ -60,7 +60,7 @@ instance (PrimMonad m) => MonadPropNet (PropNetT m) where
 
   push cell new = do
     (val, ns) <- readMutVar cell.body
-    case update val new of
+    case merge val new of
       Unchanged _ -> pure ()
       Changed x -> writeMutVar cell.body (x, ns) >> ns x
       Contradiction -> modify (\s -> s {contradiction = True})

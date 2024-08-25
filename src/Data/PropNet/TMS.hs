@@ -86,7 +86,7 @@ instance (Eq a, Partial a) => Partial (TMS a) where
   leq (TMS blfs1 rej1) (TMS blfs2 rej2) =
     blfs1 `HashMap.isSubmapOf` blfs2 && rej1 `HashSet.isSubsetOf` rej2
 
-  update t1 t2
+  merge t1 t2
     -- rejecting the given premise (empty set) means there is no solution
     | HashSet.member HashMap.empty t3.rejected = Contradiction
     | t1 == t3 = Unchanged t1
@@ -162,13 +162,13 @@ assimilate (prem, newVal) tms
   | otherwise = tms
   where
     change = case HashMap.lookup prem tms.beliefs of
-      Just oldVal -> case update oldVal newVal of
+      Just oldVal -> case merge oldVal newVal of
         Unchanged _ -> id
         Changed x -> believe (prem, x)
         Contradiction -> prune . reject prem
       Nothing ->
         let closest = head $ maxima $ [v | (p, v) <- HashMap.toList tms.beliefs, prem `subsumes` p]
-         in case update closest newVal of
+         in case merge closest newVal of
               Unchanged x -> believe (prem, x)
               Changed x -> believe (prem, x)
               Contradiction -> prune . reject prem
