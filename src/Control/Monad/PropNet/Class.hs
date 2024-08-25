@@ -6,8 +6,8 @@ import Data.Foldable (for_)
 import Data.Kind (Type)
 import Data.List (tails)
 import Data.PropNet.Partial (Partial (bottom))
-import Data.PropNet.Relation (BinaryR, TernaryR, liftTms2, liftTms3)
-import Data.PropNet.TMS (Name, TMS, fromGiven)
+import Data.PropNet.Relation (BinaryR, TernaryR)
+import Data.PropNet.TMS (Name)
 
 -- | An interface for building propagator networks in a way that is agnostic to
 -- the backend implementation (pure, IO, concurrent, etc)
@@ -45,14 +45,6 @@ class (Monad m) => MonadPropNet (m :: Type -> Type) where
   -- running whenever the cell changes, runs once immediately.
   with :: Cell m a -> (a -> m ()) -> m ()
   with cell = (peek cell >>=)
-
--- | Alias for cells that wrap their value in a `TMS`
-type LogicCell m a = Cell m (TMS a)
-
--- | Creates a new cell with a truth maintainance system for solving constraint
--- satisfaction problems
-logicCell :: (Partial a, MonadPropNet m) => m (LogicCell m a)
-logicCell = filled (fromGiven bottom)
 
 -- | Install propagators between two cells so that they propagate information to
 -- each other according to some binary relation.
