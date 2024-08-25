@@ -1,11 +1,10 @@
 module Tiles where
 
-import Control.Monad (guard, replicateM, when)
+import Control.Monad (replicateM)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDFS, searchDebug)
-import Control.Monad.PropNet.Class (empty, enforceBinary, installBinary, logicCell, push)
+import Control.Monad.PropNet (PropNetIO, evalPropNetT, randomSeed, searchDebug)
+import Control.Monad.PropNet.Class (empty, enforceBinary, push)
 import Data.Foldable (for_, traverse_)
-import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List (transpose)
 import Data.Maybe (fromMaybe)
 import Data.PropNet.Partial.Combination (Combination, CombinationOf)
@@ -13,7 +12,6 @@ import qualified Data.PropNet.Partial.Combination as C
 import Data.PropNet.Partial.OneOf (only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.Relation (BinaryR)
-import Data.PropNet.TMS (fromGiven, given)
 
 data Connection = N | S | W | E deriving (Bounded, Enum, Show)
 
@@ -69,22 +67,13 @@ generateTiles = do
   let rows = chunksOf width cells
   let cols = transpose rows
 
-  for_ (concat $ zipWith zip rows (drop 1 rows)) (installBinary (match S N))
-  for_ (concat $ zipWith zip cols (drop 1 cols)) (installBinary (match E W))
+  for_ (concat $ zipWith zip rows (drop 1 rows)) (enforceBinary (match S N))
+  for_ (concat $ zipWith zip cols (drop 1 cols)) (enforceBinary (match E W))
 
-  searchDFS given cells
-
--- ref <- liftIO $ newIORef (0 :: Int)
-
--- searchDebug cells $ \vals -> do
---   let tiles = maybe "_" showTile . only <$> vals
---   let text = unlines $ concat <$> chunksOf width tiles
---   -- liftIO (putStrLn $ text ++ "\ESC[11F")
---   liftIO (putStrLn text)
---   count <- liftIO $ readIORef ref
---   liftIO $ writeIORef ref (count + 1)
---   -- liftIO $ print count
---   pure ()
+  searchDebug cells $ \vals -> do
+    let tiles = maybe "_" showTile . only <$> vals
+    let text = unlines $ concat <$> chunksOf width tiles
+    liftIO (putStrLn $ text ++ "\ESC[21F")
 
 main :: IO ()
 main = do

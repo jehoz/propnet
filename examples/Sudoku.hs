@@ -7,7 +7,6 @@ import Data.Foldable (for_, traverse_)
 import Data.List (transpose)
 import Data.PropNet.Partial.OneOf hiding (empty)
 import Data.PropNet.Relation (neqR)
-import Data.PropNet.TMS (fromGiven)
 
 data Val = V1 | V2 | V3 | V4 | V5 | V6 | V7 | V8 | V9 deriving (Eq, Bounded, Enum)
 
@@ -34,7 +33,7 @@ chunksOf n l = take n l : chunksOf n (drop n l)
 sudoku :: PropNetIO (Maybe [Val])
 sudoku = do
   -- create a cell for each of the squares in the puzzle
-  cells <- replicateM 81 logicCell
+  cells <- replicateM 81 empty
 
   -- group each row, column, and 3x3 box
   let rows = chunksOf 9 cells
@@ -45,7 +44,7 @@ sudoku = do
   for_ (rows ++ cols ++ boxes) (enforceAll neqR)
 
   -- fill cells with the puzzle input
-  zipWithM_ (\c i -> when (i /= 0) (push c $ fromGiven (singleton $ toEnum $ i - 1))) cells puzzleInput
+  zipWithM_ (\c i -> when (i /= 0) (push c (singleton $ toEnum $ i - 1))) cells puzzleInput
 
   -- find a solution to the puzzle
   search cells
