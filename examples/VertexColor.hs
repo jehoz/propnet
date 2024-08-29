@@ -10,14 +10,19 @@ import Data.PropNet.Relation
 import Diagrams.Backend.SVG
 import Diagrams.Prelude hiding (Color)
 
-data Color = Blue | Green | Red deriving (Eq, Bounded, Enum)
+data Color = Red | Green | Blue deriving (Eq, Bounded, Enum)
 
+-- | Take list of the 10 vertices in a Petersen graph and return list of pairs
+-- for each edge
 edges :: [a] -> [(a, a)]
 edges xs =
   let outside = take 5 xs
       inside = drop 5 xs
-   in zip outside (drop 1 (cycle outside)) ++ zip inside (drop 2 (cycle inside)) ++ zip outside inside
+   in zip outside (drop 1 (cycle outside))
+        ++ zip inside (drop 2 (cycle inside))
+        ++ zip outside inside
 
+-- | Render the Petersen graph from the list of colors for each vertex
 petersenGraph :: [Color] -> Diagram B
 petersenGraph cs =
   atPoints
@@ -29,10 +34,11 @@ petersenGraph cs =
     aopts = with & arrowHead .~ noHead
     vert c n = circle 0.1 # fc (fromColor c) # named n
     fromColor c = case c of
-      Blue -> blue
-      Green -> green
       Red -> red
+      Green -> green
+      Blue -> blue
 
+-- | Solve 3-coloring for Petersen graph
 vertexColors :: PropNetIO (Maybe [Color])
 vertexColors = do
   cells <- replicateM 10 empty
