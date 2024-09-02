@@ -7,13 +7,13 @@ import Control.Monad.PropNet.Class (empty, enforceBinary, push)
 import Data.Foldable (for_, traverse_)
 import Data.List (transpose)
 import Data.Maybe (fromMaybe)
-import Data.PropNet.Partial.Combination (Combination, CombinationOf)
+import Data.PropNet.Partial.Combination (Combination)
 import qualified Data.PropNet.Partial.Combination as C
-import Data.PropNet.Partial.OneOf (only)
+import Data.PropNet.Partial.OneOf (OneOf, only)
 import qualified Data.PropNet.Partial.OneOf as OneOf
 import Data.PropNet.Relation (BinaryR)
 
-data Connection = N | S | W | E deriving (Bounded, Enum, Show)
+data Connection = N | S | W | E deriving (Bounded, Enum)
 
 type Tile = Combination Connection
 
@@ -39,17 +39,18 @@ showTile x = case C.toList x of
   [N, S, W, E] -> "╬"
   _ -> "?" -- tiles with one connection should be rejected
 
-match :: a -> a -> BinaryR (CombinationOf a) (CombinationOf a)
-match i j (x, y) = (x', y')
+connect :: a -> a -> BinaryR (OneOf (Combination a)) (OneOf (Combination a))
+connect i j (x, y) = (x', y')
   where
-    x' = match' i j (x, y)
-    y' = match' j i (y, x)
+    x' = connect' i j (x, y)
+    y' = connect' j i (y, x)
 
-    match' e1 e2 (c1, c2) = fromMaybe c1 $ do
+    connect' e1 e2 (c1, c2) = fromMaybe c1 $ do
       c <- only c2
-      if C.member e2 c
-        then pure (OneOf.filter (C.member e1) c1)
-        else pure (OneOf.filter (C.notMember e1) c1)
+      Just $
+        if C.member e2 c
+          then OneOf.filter (C.member e1) c1
+          else OneOf.filter (C.notMember e1) c1
 
 chunksOf :: Int -> [a] -> [[a]]
 chunksOf _ [] = []
@@ -67,8 +68,8 @@ generateTiles = do
   let rows = chunksOf width cells
   let cols = transpose rows
 
-  for_ (concat $ zipWith zip rows (drop 1 rows)) (enforceBinary (match S N))
-  for_ (concat $ zipWith zip cols (drop 1 cols)) (enforceBinary (match E W))
+  for_ (concat $ zipWith zip rows (drop 1 rows)) (enforceBinary (connect S N))
+  for_ (concat $ zipWith zip cols (drop 1 cols)) (enforceBinary (connect E W))
 
   searchDebug cells $ \vals -> do
     let tiles = maybe "_" showTile . only <$> vals

@@ -8,7 +8,6 @@ import Data.IntSet (IntSet)
 import qualified Data.IntSet as IntSet
 import Data.List (unfoldr)
 import Data.Maybe (mapMaybe)
-import Data.PropNet.Partial.OneOf (OneOf)
 import Data.Tuple (swap)
 
 -- | A wrapper around a set, representing a combination of values.
@@ -36,8 +35,6 @@ instance (Bounded a, Enum a) => Enum (Combination a) where
     let bits = unfoldr (\n -> if n == 0 then Nothing else Just (swap (divMod n 2))) x
         ints = mapMaybe (\(n, b) -> if b > 0 then Just n else Nothing) (zip [0 ..] bits)
      in fromList (toEnum <$> ints)
-
-type CombinationOf a = OneOf (Combination a)
 
 -- | Construct a `Combination` from a list of values
 fromList :: (Bounded a, Enum a) => [a] -> Combination a
