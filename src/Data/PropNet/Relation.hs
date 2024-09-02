@@ -3,21 +3,19 @@ module Data.PropNet.Relation where
 import Data.PropNet.Partial.OneOf (OneOf)
 import qualified Data.PropNet.Partial.OneOf as OneOf
 
-type BinaryR a b = ((a, b) -> (a, b))
+type BinaryR a b = (a, b) -> (a, b)
 
-type TernaryR a b c = ((a, b, c) -> (a, b, c))
+type TernaryR a b c = (a, b, c) -> (a, b, c)
 
 -- | Two cells should be exactly equal to one another.
 eqR :: BinaryR a a
 eqR (x, y) = (y, x)
 
--- | If one cell holds a known value, the other cell cannot not hold that value.
+-- | If one cell holds a known value, the other cell cannot hold that value.
 neqR :: (Bounded a, Enum a) => BinaryR (OneOf a) (OneOf a)
 neqR (x, y) =
   let f old new = if OneOf.size new == 1 then OneOf.difference old new else old
-      x' = f x y
-      y' = f y x
-   in (x', y')
+   in (f x y, f y x)
 
 -- | The first cell's value must be greater than the second cell
 gtR :: (Ord a) => BinaryR (OneOf a) (OneOf a)
